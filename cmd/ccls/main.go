@@ -8,6 +8,7 @@ import (
 
 	"github.com/13rac1/ccls/internal/config"
 	"github.com/13rac1/ccls/internal/discover"
+	"github.com/13rac1/ccls/internal/doctor"
 	"github.com/13rac1/ccls/internal/types"
 	"github.com/spf13/cobra"
 )
@@ -98,13 +99,10 @@ and remote S3 connectivity works.`,
 			return err
 		}
 
-		// TODO: Implement doctor functionality
-		fmt.Printf("Config loaded successfully:\n")
-		fmt.Printf("  Projects root: %s\n", cfg.Local.ProjectsRoot)
-		fmt.Printf("  S3 bucket: %s\n", cfg.S3.Bucket)
-		fmt.Printf("  S3 region: %s\n", cfg.S3.Region)
-		fmt.Printf("  S3 prefix: %s\n", cfg.S3.Prefix)
-		fmt.Println("\nDoctor functionality will be implemented in Phase 2")
+		allPassed := doctor.RunChecks(cfg, configPath)
+		if !allPassed {
+			exitFunc(1)
+		}
 		return nil
 	},
 }
