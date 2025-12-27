@@ -13,6 +13,40 @@ import (
 // s3ClientInterface defines the minimal S3 client interface needed for checking file existence.
 type s3ClientInterface interface {
 	HeadObject(ctx context.Context, params *s3.HeadObjectInput, optFns ...func(*s3.Options)) (*s3.HeadObjectOutput, error)
+	ListObjectsV2(ctx context.Context, params *s3.ListObjectsV2Input, optFns ...func(*s3.Options)) (*s3.ListObjectsV2Output, error)
+}
+
+// ListRemoteFiles fetches all objects under a given prefix and returns a map of S3 key to file size.
+// This allows efficient batch checking of multiple files with a single API call (or a few calls with pagination).
+// Returns an empty map if no objects exist under the prefix.
+func ListRemoteFiles(ctx context.Context, client s3ClientInterface, bucket, prefix string) (map[string]int64, error) {
+	remoteFiles := make(map[string]int64)
+
+	input := &s3.ListObjectsV2Input{
+		Bucket: aws.String(bucket),
+		Prefix: aws.String(prefix),
+	}
+
+	for {
+		output, err := client.ListObjectsV2(ctx, input)
+		if err != nil {
+			return nil, fmt.Errorf("list objects with prefix %s: %w", prefix, err)
+		}
+
+		for _, obj := range output.Contents {
+			if obj.Key != nil && obj.Size != nil {
+				remoteFiles[*obj.Key] = *obj.Size
+			}
+		}
+
+		if !aws.ToBool(output.IsTruncated) {
+			break
+		}
+
+		input.ContinuationToken = output.NextContinuationToken
+	}
+
+	return remoteFiles, nil
 }
 
 // ShouldUpload checks if a file should be uploaded by comparing with remote.

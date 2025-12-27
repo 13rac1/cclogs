@@ -88,18 +88,42 @@ func (u *Uploader) DiscoverFiles(ctx context.Context) ([]FileUpload, error) {
 		uploads = append(uploads, projectUploads...)
 	}
 
-	// Check each file against remote to determine if upload is needed
+	// Check files against remote to determine if upload is needed
 	// Skip remote checking if client is nil (for tests)
 	if u.client != nil {
+		// Group files by project to minimize API calls
+		projectFiles := make(map[string][]int)
 		for i := range uploads {
-			shouldUpload, err := ShouldUpload(ctx, u.client, u.cfg.S3.Bucket, uploads[i].S3Key, uploads[i].Size)
+			projectFiles[uploads[i].ProjectDir] = append(projectFiles[uploads[i].ProjectDir], i)
+		}
+
+		// For each project, fetch all remote files once and compare
+		for projectDir, indices := range projectFiles {
+			// Compute prefix for this project's remote files
+			prefix := u.cfg.S3.Prefix
+			if prefix != "" && !strings.HasSuffix(prefix, "/") {
+				prefix += "/"
+			}
+			projectPrefix := prefix + projectDir + "/"
+
+			// Fetch all remote files for this project in one API call
+			remoteFiles, err := ListRemoteFiles(ctx, u.client, u.cfg.S3.Bucket, projectPrefix)
 			if err != nil {
 				// Log warning but continue - default to upload on error
-				fmt.Fprintf(os.Stderr, "Warning: failed to check remote file %s: %v\n", uploads[i].S3Key, err)
-				uploads[i].ShouldSkip = false
-			} else {
-				uploads[i].ShouldSkip = !shouldUpload
-				if uploads[i].ShouldSkip {
+				fmt.Fprintf(os.Stderr, "Warning: failed to list remote files for project %s: %v\n", projectDir, err)
+				for _, i := range indices {
+					uploads[i].ShouldSkip = false
+				}
+				continue
+			}
+
+			// Compare each local file against the remote files map
+			for _, i := range indices {
+				remoteSize, exists := remoteFiles[uploads[i].S3Key]
+				if !exists || remoteSize != uploads[i].Size {
+					uploads[i].ShouldSkip = false
+				} else {
+					uploads[i].ShouldSkip = true
 					uploads[i].SkipReason = "identical"
 				}
 			}
