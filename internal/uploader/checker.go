@@ -26,7 +26,8 @@ func ShouldUpload(ctx context.Context, client s3ClientInterface, bucket, key str
 
 	if err != nil {
 		var nsk *types.NoSuchKey
-		if errors.As(err, &nsk) {
+		var nf *types.NotFound
+		if errors.As(err, &nsk) || errors.As(err, &nf) {
 			return true, nil
 		}
 		return false, fmt.Errorf("head object %s: %w", key, err)

@@ -33,9 +33,18 @@ func TestShouldUpload(t *testing.T) {
 		wantErr   bool
 	}{
 		{
-			name: "file doesn't exist - should upload",
+			name: "file doesn't exist (NoSuchKey) - should upload",
 			setupMock: func(m *mockS3Client) {
 				m.headObjectErr = &types.NoSuchKey{}
+			},
+			localSize: 1024,
+			want:      true,
+			wantErr:   false,
+		},
+		{
+			name: "file doesn't exist (NotFound) - should upload",
+			setupMock: func(m *mockS3Client) {
+				m.headObjectErr = &types.NotFound{}
 			},
 			localSize: 1024,
 			want:      true,
