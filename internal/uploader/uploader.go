@@ -18,6 +18,8 @@ type FileUpload struct {
 	S3Key      string // Destination S3 key
 	Size       int64  // File size in bytes
 	ProjectDir string // Project directory name
+	ShouldSkip bool   // True if file exists remotely and is identical
+	SkipReason string // Reason for skipping (e.g., "identical")
 }
 
 // Uploader orchestrates file uploads to S3.
@@ -81,6 +83,24 @@ func (u *Uploader) DiscoverFiles(ctx context.Context) ([]FileUpload, error) {
 		uploads = append(uploads, projectUploads...)
 	}
 
+	// Check each file against remote to determine if upload is needed
+	// Skip remote checking if client is nil (for tests)
+	if u.client != nil {
+		for i := range uploads {
+			shouldUpload, err := ShouldUpload(ctx, u.client, u.cfg.S3.Bucket, uploads[i].S3Key, uploads[i].Size)
+			if err != nil {
+				// Log warning but continue - default to upload on error
+				fmt.Fprintf(os.Stderr, "Warning: failed to check remote file %s: %v\n", uploads[i].S3Key, err)
+				uploads[i].ShouldSkip = false
+			} else {
+				uploads[i].ShouldSkip = !shouldUpload
+				if uploads[i].ShouldSkip {
+					uploads[i].SkipReason = "identical"
+				}
+			}
+		}
+	}
+
 	return uploads, nil
 }
 
@@ -117,12 +137,14 @@ func (u *Uploader) discoverProjectFiles(projectPath, projectDir string) ([]FileU
 		// Compute S3 key
 		s3Key := ComputeS3Key(u.cfg.S3.Prefix, projectDir, relPath)
 
-		uploads = append(uploads, FileUpload{
+		upload := FileUpload{
 			LocalPath:  path,
 			S3Key:      s3Key,
 			Size:       info.Size(),
 			ProjectDir: projectDir,
-		})
+		}
+
+		uploads = append(uploads, upload)
 
 		return nil
 	})

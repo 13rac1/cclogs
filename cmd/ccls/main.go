@@ -269,8 +269,9 @@ func printDryRun(files []uploader.FileUpload) {
 	sort.Strings(projectNames)
 
 	// Print files grouped by project
-	var totalFiles int
-	var totalSize int64
+	var toUpload int
+	var toSkip int
+	var uploadSize int64
 
 	for _, projectName := range projectNames {
 		fmt.Printf("Project: %s\n", projectName)
@@ -282,20 +283,19 @@ func printDryRun(files []uploader.FileUpload) {
 		})
 
 		for _, f := range files {
-			// Compute relative path from project directory for display
-			relPath, err := filepath.Rel(filepath.Join(filepath.Dir(f.LocalPath), ".."), f.LocalPath)
-			if err != nil {
-				relPath = filepath.Base(f.LocalPath)
+			if f.ShouldSkip {
+				fmt.Printf("  [SKIP] %s (reason: %s)\n", f.S3Key, f.SkipReason)
+				toSkip++
+			} else {
+				fmt.Printf("  [UPLOAD] %s (%s)\n", f.S3Key, formatSize(f.Size))
+				toUpload++
+				uploadSize += f.Size
 			}
-
-			fmt.Printf("  %s -> %s (%s)\n", relPath, f.S3Key, formatSize(f.Size))
-			totalFiles++
-			totalSize += f.Size
 		}
 		fmt.Println()
 	}
 
-	fmt.Printf("Total: %d files (%s)\n", totalFiles, formatSize(totalSize))
+	fmt.Printf("Summary: %d to upload (%s), %d to skip\n", toUpload, formatSize(uploadSize), toSkip)
 }
 
 // formatSize formats a byte count as a human-readable string.
