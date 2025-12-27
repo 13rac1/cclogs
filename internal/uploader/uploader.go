@@ -9,6 +9,8 @@ import (
 	"strings"
 
 	"github.com/13rac1/ccls/internal/types"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 )
 
@@ -182,4 +184,108 @@ func ComputeS3Key(prefix, projectDir, relPath string) string {
 	}
 
 	return key
+}
+
+// UploadResult contains summary statistics from an upload operation.
+type UploadResult struct {
+	Uploaded      int   // Number of files uploaded
+	Skipped       int   // Number of files skipped
+	UploadedBytes int64 // Total bytes uploaded
+}
+
+// Upload uploads the provided files to S3, respecting the ShouldSkip field.
+// Files marked with ShouldSkip=true are skipped and reported as such.
+// Returns summary statistics and any error encountered.
+func (u *Uploader) Upload(ctx context.Context, files []FileUpload) (*UploadResult, error) {
+	if len(files) == 0 {
+		return &UploadResult{}, nil
+	}
+
+	// Configure uploader with multipart settings
+	uploader := manager.NewUploader(u.client, func(mu *manager.Uploader) {
+		mu.Concurrency = 5            // 5 concurrent parts per file
+		mu.PartSize = 5 * 1024 * 1024 // 5MB parts
+	})
+
+	result := &UploadResult{}
+	totalFiles := len(files)
+
+	for i, file := range files {
+		fileNum := i + 1
+
+		// Check context cancellation
+		if err := ctx.Err(); err != nil {
+			return result, fmt.Errorf("upload cancelled: %w", err)
+		}
+
+		// Skip files marked as identical
+		if file.ShouldSkip {
+			fmt.Printf("[%d/%d] Skipping %s (%s)\n", fileNum, totalFiles, file.LocalPath, file.SkipReason)
+			result.Skipped++
+			continue
+		}
+
+		// Upload the file
+		fmt.Printf("[%d/%d] Uploading %s (%s)\n", fileNum, totalFiles, file.LocalPath, formatSize(file.Size))
+
+		if err := u.uploadFile(ctx, uploader, file); err != nil {
+			return result, fmt.Errorf("uploading %s: %w", file.LocalPath, err)
+		}
+
+		result.Uploaded++
+		result.UploadedBytes += file.Size
+	}
+
+	// Print summary
+	fmt.Printf("\nUpload complete: %d uploaded (%s), %d skipped\n",
+		result.Uploaded, formatSize(result.UploadedBytes), result.Skipped)
+
+	return result, nil
+}
+
+// uploadFile uploads a single file to S3 using the configured uploader.
+func (u *Uploader) uploadFile(ctx context.Context, uploader *manager.Uploader, file FileUpload) error {
+	// Open the local file
+	f, err := os.Open(file.LocalPath)
+	if err != nil {
+		return fmt.Errorf("opening file: %w", err)
+	}
+	defer func() {
+		if closeErr := f.Close(); closeErr != nil {
+			// Log close error but don't override upload error
+			fmt.Fprintf(os.Stderr, "Warning: failed to close file %s: %v\n", file.LocalPath, closeErr)
+		}
+	}()
+
+	// Upload to S3
+	_, err = uploader.Upload(ctx, &s3.PutObjectInput{
+		Bucket: aws.String(u.cfg.S3.Bucket),
+		Key:    aws.String(file.S3Key),
+		Body:   f,
+	})
+	if err != nil {
+		return fmt.Errorf("s3 upload: %w", err)
+	}
+
+	return nil
+}
+
+// formatSize formats a byte count as a human-readable string.
+func formatSize(bytes int64) string {
+	const (
+		KB = 1024
+		MB = KB * 1024
+		GB = MB * 1024
+	)
+
+	switch {
+	case bytes >= GB:
+		return fmt.Sprintf("%.1f GB", float64(bytes)/GB)
+	case bytes >= MB:
+		return fmt.Sprintf("%.1f MB", float64(bytes)/MB)
+	case bytes >= KB:
+		return fmt.Sprintf("%.1f KB", float64(bytes)/KB)
+	default:
+		return fmt.Sprintf("%d B", bytes)
+	}
 }

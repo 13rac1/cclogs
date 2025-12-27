@@ -295,3 +295,94 @@ func TestDiscoverFilesCaseInsensitiveExtension(t *testing.T) {
 		t.Errorf("expected 3 files, got %d", len(discovered))
 	}
 }
+
+// TestUpload validates the upload logic with skip behavior.
+// Note: This test focuses on the skip logic and result aggregation.
+// Actual S3 upload testing would require integration tests with a mock S3 server.
+func TestUpload_SkipLogic(t *testing.T) {
+	// Test that files marked as ShouldSkip are properly counted
+	files := []FileUpload{
+		{
+			LocalPath:  "/fake/path1.jsonl",
+			S3Key:      "project/file1.jsonl",
+			Size:       100,
+			ProjectDir: "project",
+			ShouldSkip: true,
+			SkipReason: "identical",
+		},
+		{
+			LocalPath:  "/fake/path2.jsonl",
+			S3Key:      "project/file2.jsonl",
+			Size:       200,
+			ProjectDir: "project",
+			ShouldSkip: true,
+			SkipReason: "identical",
+		},
+	}
+
+	cfg := &types.Config{
+		S3: types.S3Config{Bucket: "test-bucket"},
+	}
+	uploader := New(cfg, nil)
+
+	// All files are marked to skip, so no actual upload should be attempted
+	result, err := uploader.Upload(context.Background(), files)
+	if err != nil {
+		t.Fatalf("Upload failed: %v", err)
+	}
+
+	if result.Uploaded != 0 {
+		t.Errorf("expected 0 files uploaded, got %d", result.Uploaded)
+	}
+	if result.Skipped != 2 {
+		t.Errorf("expected 2 files skipped, got %d", result.Skipped)
+	}
+	if result.UploadedBytes != 0 {
+		t.Errorf("expected 0 bytes uploaded, got %d", result.UploadedBytes)
+	}
+}
+
+func TestUpload_Empty(t *testing.T) {
+	cfg := &types.Config{
+		S3: types.S3Config{Bucket: "test-bucket"},
+	}
+	uploader := New(cfg, nil)
+
+	result, err := uploader.Upload(context.Background(), []FileUpload{})
+	if err != nil {
+		t.Fatalf("Upload of empty list failed: %v", err)
+	}
+
+	if result.Uploaded != 0 {
+		t.Errorf("expected 0 files uploaded, got %d", result.Uploaded)
+	}
+	if result.Skipped != 0 {
+		t.Errorf("expected 0 files skipped, got %d", result.Skipped)
+	}
+}
+
+func TestUpload_ContextCancelled(t *testing.T) {
+	cfg := &types.Config{
+		S3: types.S3Config{Bucket: "test-bucket"},
+	}
+	uploader := New(cfg, nil)
+
+	files := []FileUpload{
+		{
+			LocalPath:  "/fake/path.jsonl",
+			S3Key:      "test.jsonl",
+			Size:       4,
+			ProjectDir: "test-project",
+			ShouldSkip: false,
+		},
+	}
+
+	// Cancel context before upload
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	_, err := uploader.Upload(ctx, files)
+	if err == nil {
+		t.Fatal("expected error for cancelled context, got nil")
+	}
+}

@@ -117,8 +117,12 @@ to S3-compatible storage. Safe to run repeatedly from multiple machines.`,
 			return nil
 		}
 
-		// Actual upload happens in Phase 10
-		fmt.Println("Upload not yet implemented (Phase 10)")
+		// Perform upload
+		_, err = u.Upload(ctx, files)
+		if err != nil {
+			return fmt.Errorf("uploading files: %w", err)
+		}
+
 		return nil
 	},
 }
@@ -299,6 +303,8 @@ func printDryRun(files []uploader.FileUpload) {
 }
 
 // formatSize formats a byte count as a human-readable string.
+// This duplicates the function in uploader package to avoid exporting
+// internal implementation details.
 func formatSize(bytes int64) string {
 	const (
 		KB = 1024
