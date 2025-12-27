@@ -12,6 +12,7 @@ import (
 	"github.com/13rac1/ccls/internal/doctor"
 	"github.com/13rac1/ccls/internal/output"
 	"github.com/13rac1/ccls/internal/types"
+	"github.com/13rac1/ccls/internal/uploader"
 	"github.com/spf13/cobra"
 )
 
@@ -36,6 +37,7 @@ and uploads them to S3-compatible storage for backup and archival.`,
 
 var (
 	jsonOutput bool
+	dryRun     bool
 )
 
 var listCmd = &cobra.Command{
@@ -92,13 +94,31 @@ to S3-compatible storage. Safe to run repeatedly from multiple machines.`,
 			return err
 		}
 
-		// TODO: Implement upload functionality
-		fmt.Printf("Config loaded successfully:\n")
-		fmt.Printf("  Projects root: %s\n", cfg.Local.ProjectsRoot)
-		fmt.Printf("  S3 bucket: %s\n", cfg.S3.Bucket)
-		fmt.Printf("  S3 region: %s\n", cfg.S3.Region)
-		fmt.Printf("  S3 prefix: %s\n", cfg.S3.Prefix)
-		fmt.Println("\nUpload functionality will be implemented in Phase 2")
+		ctx := cmd.Context()
+
+		// Create S3 client
+		client, err := config.NewS3Client(ctx, cfg)
+		if err != nil {
+			return fmt.Errorf("creating S3 client: %w", err)
+		}
+
+		// Create uploader
+		u := uploader.New(cfg, client)
+
+		// Discover files
+		files, err := u.DiscoverFiles(ctx)
+		if err != nil {
+			return fmt.Errorf("discovering files: %w", err)
+		}
+
+		// In dry-run mode, just print what would be uploaded
+		if dryRun {
+			printDryRun(files)
+			return nil
+		}
+
+		// Actual upload happens in Phase 10
+		fmt.Println("Upload not yet implemented (Phase 10)")
 		return nil
 	},
 }
@@ -133,6 +153,7 @@ func init() {
 	rootCmd.PersistentFlags().StringVar(&configPath, "config", defaultConfigPath, "path to config file")
 
 	listCmd.Flags().BoolVar(&jsonOutput, "json", false, "output in JSON format")
+	uploadCmd.Flags().BoolVar(&dryRun, "dry-run", false, "show planned uploads without performing them")
 
 	rootCmd.AddCommand(listCmd)
 	rootCmd.AddCommand(uploadCmd)
@@ -222,4 +243,77 @@ func mergeProjects(local, remote []types.Project) []types.Project {
 	})
 
 	return merged
+}
+
+// printDryRun displays planned uploads in a human-readable format.
+func printDryRun(files []uploader.FileUpload) {
+	if len(files) == 0 {
+		fmt.Println("No files to upload")
+		return
+	}
+
+	fmt.Println("Planned uploads (dry-run mode):")
+	fmt.Println()
+
+	// Group files by project
+	projectFiles := make(map[string][]uploader.FileUpload)
+	for _, f := range files {
+		projectFiles[f.ProjectDir] = append(projectFiles[f.ProjectDir], f)
+	}
+
+	// Sort project names for deterministic output
+	var projectNames []string
+	for name := range projectFiles {
+		projectNames = append(projectNames, name)
+	}
+	sort.Strings(projectNames)
+
+	// Print files grouped by project
+	var totalFiles int
+	var totalSize int64
+
+	for _, projectName := range projectNames {
+		fmt.Printf("Project: %s\n", projectName)
+		files := projectFiles[projectName]
+
+		// Sort files within project by local path
+		sort.Slice(files, func(i, j int) bool {
+			return files[i].LocalPath < files[j].LocalPath
+		})
+
+		for _, f := range files {
+			// Compute relative path from project directory for display
+			relPath, err := filepath.Rel(filepath.Join(filepath.Dir(f.LocalPath), ".."), f.LocalPath)
+			if err != nil {
+				relPath = filepath.Base(f.LocalPath)
+			}
+
+			fmt.Printf("  %s -> %s (%s)\n", relPath, f.S3Key, formatSize(f.Size))
+			totalFiles++
+			totalSize += f.Size
+		}
+		fmt.Println()
+	}
+
+	fmt.Printf("Total: %d files (%s)\n", totalFiles, formatSize(totalSize))
+}
+
+// formatSize formats a byte count as a human-readable string.
+func formatSize(bytes int64) string {
+	const (
+		KB = 1024
+		MB = KB * 1024
+		GB = MB * 1024
+	)
+
+	switch {
+	case bytes >= GB:
+		return fmt.Sprintf("%.1f GB", float64(bytes)/GB)
+	case bytes >= MB:
+		return fmt.Sprintf("%.1f MB", float64(bytes)/MB)
+	case bytes >= KB:
+		return fmt.Sprintf("%.1f KB", float64(bytes)/KB)
+	default:
+		return fmt.Sprintf("%d B", bytes)
+	}
 }
