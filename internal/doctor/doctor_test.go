@@ -302,7 +302,8 @@ func TestRunChecks(t *testing.T) {
 			cfg, configPath, cleanup := tt.setupFunc(t)
 			defer cleanup()
 
-			got := RunChecks(cfg, configPath)
+			// Skip remote connectivity checks in tests (no AWS credentials available)
+			got := RunChecks(cfg, configPath, true)
 
 			if got != tt.wantPassed {
 				t.Errorf("RunChecks() = %v, want %v", got, tt.wantPassed)

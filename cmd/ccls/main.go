@@ -87,7 +87,7 @@ and remote S3 connectivity works.`,
 			return err
 		}
 
-		allPassed := doctor.RunChecks(cfg, configPath)
+		allPassed := doctor.RunChecks(cfg, configPath, false)
 		if !allPassed {
 			exitFunc(1)
 		}
