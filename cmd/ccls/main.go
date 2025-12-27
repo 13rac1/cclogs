@@ -34,6 +34,10 @@ var rootCmd = &cobra.Command{
 and uploads them to S3-compatible storage for backup and archival.`,
 }
 
+var (
+	jsonOutput bool
+)
+
 var listCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List local and remote projects with JSONL counts",
@@ -66,7 +70,13 @@ showing the count of .jsonl files for each project.`,
 		// Merge local and remote projects
 		merged := mergeProjects(localProjects, remoteProjects)
 
-		output.PrintProjects(merged)
+		if jsonOutput {
+			if err := output.PrintJSON(merged, cfg); err != nil {
+				return fmt.Errorf("printing JSON output: %w", err)
+			}
+		} else {
+			output.PrintProjects(merged)
+		}
 		return nil
 	},
 }
@@ -121,6 +131,8 @@ func init() {
 	defaultConfigPath = filepath.Join(homeDir, ".ccls", "config.yaml")
 
 	rootCmd.PersistentFlags().StringVar(&configPath, "config", defaultConfigPath, "path to config file")
+
+	listCmd.Flags().BoolVar(&jsonOutput, "json", false, "output in JSON format")
 
 	rootCmd.AddCommand(listCmd)
 	rootCmd.AddCommand(uploadCmd)
