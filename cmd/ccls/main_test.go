@@ -158,3 +158,127 @@ func createFile(t *testing.T, path string) {
 		t.Fatalf("failed to close file %s: %v", path, err)
 	}
 }
+
+func TestLoadConfigAutoCreation(t *testing.T) {
+	tmpDir := t.TempDir()
+	testConfigPath := filepath.Join(tmpDir, ".ccls", "config.yaml")
+
+	oldConfigPath := configPath
+	oldDefaultConfigPath := defaultConfigPath
+	oldExitFunc := exitFunc
+	oldStdout := os.Stdout
+	defer func() {
+		configPath = oldConfigPath
+		defaultConfigPath = oldDefaultConfigPath
+		exitFunc = oldExitFunc
+		os.Stdout = oldStdout
+	}()
+
+	configPath = testConfigPath
+	defaultConfigPath = testConfigPath
+
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+
+	exitCalled := false
+	exitCode := -1
+	exitFunc = func(code int) {
+		exitCalled = true
+		exitCode = code
+	}
+
+	_, err := loadConfig()
+
+	if err := w.Close(); err != nil {
+		t.Logf("failed to close pipe writer: %v", err)
+	}
+	os.Stdout = oldStdout
+
+	output := make([]byte, 2048)
+	r.Read(output)
+
+	if !exitCalled {
+		t.Error("expected exitFunc to be called after creating starter config")
+	}
+
+	if exitCode != 0 {
+		t.Errorf("expected exit code 0, got %d", exitCode)
+	}
+
+	if err != nil && !strings.Contains(err.Error(), "config file not found") {
+		t.Fatalf("loadConfig() unexpected error = %v", err)
+	}
+
+	if _, err := os.Stat(testConfigPath); os.IsNotExist(err) {
+		t.Error("expected config file to be created, but it does not exist")
+	}
+
+	content, err := os.ReadFile(testConfigPath)
+	if err != nil {
+		t.Fatalf("failed to read created config: %v", err)
+	}
+
+	if !strings.Contains(string(content), "YOUR-BUCKET-NAME") {
+		t.Error("created config missing expected placeholder content")
+	}
+}
+
+func TestLoadConfigCustomPathNoAutoCreation(t *testing.T) {
+	tmpDir := t.TempDir()
+	customPath := filepath.Join(tmpDir, "custom-config.yaml")
+
+	defaultConfigPath = filepath.Join(tmpDir, ".ccls", "config.yaml")
+
+	oldConfigPath := configPath
+	configPath = customPath
+	defer func() { configPath = oldConfigPath }()
+
+	_, err := loadConfig()
+
+	if err == nil {
+		t.Error("loadConfig() error = nil, want error for missing custom config")
+	}
+
+	if !strings.Contains(err.Error(), "config file not found") {
+		t.Errorf("loadConfig() error = %q, want error containing 'config file not found'", err.Error())
+	}
+
+	if _, err := os.Stat(customPath); !os.IsNotExist(err) {
+		t.Error("custom config path should not be auto-created")
+	}
+}
+
+func TestPrintWelcomeMessage(t *testing.T) {
+	oldStdout := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+
+	configPath := "/test/path/config.yaml"
+	printWelcomeMessage(configPath)
+
+	if err := w.Close(); err != nil {
+		t.Logf("failed to close pipe writer: %v", err)
+	}
+	os.Stdout = oldStdout
+
+	output := make([]byte, 2048)
+	n, _ := r.Read(output)
+	outputStr := string(output[:n])
+
+	expectedPhrases := []string{
+		"Welcome to ccls!",
+		configPath,
+		"s3.bucket",
+		"s3.region",
+		"auth.profile",
+		"ccls doctor",
+		"ccls list",
+		"ccls upload",
+	}
+
+	for _, phrase := range expectedPhrases {
+		if !strings.Contains(outputStr, phrase) {
+			t.Errorf("welcome message missing expected phrase: %q", phrase)
+		}
+	}
+}

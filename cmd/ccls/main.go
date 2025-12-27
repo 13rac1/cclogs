@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -12,7 +13,8 @@ import (
 )
 
 var (
-	configPath string
+	configPath        string
+	defaultConfigPath string
 )
 
 func main() {
@@ -113,7 +115,7 @@ func init() {
 		fmt.Fprintf(os.Stderr, "Warning: failed to get home directory: %v\n", err)
 		homeDir = "~"
 	}
-	defaultConfigPath := filepath.Join(homeDir, ".ccls", "config.yaml")
+	defaultConfigPath = filepath.Join(homeDir, ".ccls", "config.yaml")
 
 	rootCmd.PersistentFlags().StringVar(&configPath, "config", defaultConfigPath, "path to config file")
 
@@ -122,10 +124,44 @@ func init() {
 	rootCmd.AddCommand(doctorCmd)
 }
 
+var exitFunc = os.Exit
+
 func loadConfig() (*types.Config, error) {
 	cfg, err := config.Load(configPath)
 	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			isDefaultPath := configPath == defaultConfigPath
+			if isDefaultPath {
+				if err := config.CreateStarterConfig(configPath); err != nil {
+					return nil, fmt.Errorf("creating starter config: %w", err)
+				}
+				printWelcomeMessage(configPath)
+				exitFunc(0)
+			}
+			return nil, fmt.Errorf("config file not found: %s", configPath)
+		}
 		return nil, fmt.Errorf("loading config from %s: %w", configPath, err)
 	}
 	return cfg, nil
+}
+
+func printWelcomeMessage(configPath string) {
+	fmt.Println("Welcome to ccls!")
+	fmt.Println()
+	fmt.Printf("A starter configuration file has been created at:\n")
+	fmt.Printf("  %s\n", configPath)
+	fmt.Println()
+	fmt.Println("Please edit this file and configure:")
+	fmt.Println("  1. s3.bucket - Your S3 bucket name")
+	fmt.Println("  2. s3.region - Your AWS region")
+	fmt.Println("  3. auth.profile - Your AWS profile (or use static credentials)")
+	fmt.Println()
+	fmt.Println("For S3-compatible providers (Backblaze B2, MinIO, etc.):")
+	fmt.Println("  - Set s3.endpoint to your provider's endpoint URL")
+	fmt.Println("  - Set s3.force_path_style: true if required")
+	fmt.Println()
+	fmt.Println("After configuration, run:")
+	fmt.Println("  ccls doctor   # Validate configuration")
+	fmt.Println("  ccls list     # List local and remote projects")
+	fmt.Println("  ccls upload   # Upload local JSONL files")
 }

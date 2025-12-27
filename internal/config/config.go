@@ -15,6 +15,42 @@ const (
 	defaultS3Prefix     = "claude-code/"
 )
 
+const starterConfigTemplate = `# ccls configuration file
+# ccls ships Claude Code session logs to S3-compatible storage
+
+# Local configuration
+local:
+  # Path to Claude Code projects directory (default: ~/.claude/projects)
+  projects_root: "~/.claude/projects"
+
+# S3-compatible storage configuration
+s3:
+  # REQUIRED: S3 bucket name
+  bucket: "YOUR-BUCKET-NAME"
+
+  # REQUIRED: AWS region (e.g., us-west-2, us-east-1)
+  region: "us-west-2"
+
+  # Optional: Prefix for all uploaded files (default: claude-code/)
+  prefix: "claude-code/"
+
+  # Optional: Custom S3 endpoint for S3-compatible providers (Backblaze B2, MinIO, etc.)
+  # endpoint: "https://s3.us-west-002.backblazeb2.com"
+
+  # Optional: Use path-style addressing (required for some S3-compatible providers)
+  # force_path_style: true
+
+# Authentication configuration
+auth:
+  # Option 1: Use AWS profile from ~/.aws/credentials (recommended)
+  profile: "default"
+
+  # Option 2: Static credentials (not recommended - use profile instead)
+  # access_key_id: ""
+  # secret_access_key: ""
+  # session_token: ""
+`
+
 // Load reads and validates configuration from the specified path.
 // Tilde (~) in paths is expanded to the user's home directory.
 func Load(path string) (*types.Config, error) {
@@ -101,4 +137,24 @@ func expandTilde(path string) (string, error) {
 	}
 
 	return path, nil
+}
+
+// CreateStarterConfig creates a starter configuration file with helpful comments
+// at the specified path. Creates parent directories if needed.
+func CreateStarterConfig(path string) error {
+	expandedPath, err := expandTilde(path)
+	if err != nil {
+		return fmt.Errorf("expanding config path: %w", err)
+	}
+
+	dir := filepath.Dir(expandedPath)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return fmt.Errorf("creating config directory %s: %w", dir, err)
+	}
+
+	if err := os.WriteFile(expandedPath, []byte(starterConfigTemplate), 0644); err != nil {
+		return fmt.Errorf("writing starter config to %s: %w", expandedPath, err)
+	}
+
+	return nil
 }
