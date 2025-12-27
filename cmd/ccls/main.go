@@ -9,6 +9,7 @@ import (
 	"github.com/13rac1/ccls/internal/config"
 	"github.com/13rac1/ccls/internal/discover"
 	"github.com/13rac1/ccls/internal/doctor"
+	"github.com/13rac1/ccls/internal/output"
 	"github.com/13rac1/ccls/internal/types"
 	"github.com/spf13/cobra"
 )
@@ -48,20 +49,7 @@ showing the count of .jsonl files for each project.`,
 			return fmt.Errorf("discovering local projects: %w", err)
 		}
 
-		fmt.Println("Local Projects:")
-		if len(projects) == 0 {
-			fmt.Println("  (no projects found)")
-			return nil
-		}
-
-		for _, p := range projects {
-			fileWord := "files"
-			if p.JSONLCount == 1 {
-				fileWord = "file"
-			}
-			fmt.Printf("  %s: %d JSONL %s\n", p.Name, p.JSONLCount, fileWord)
-		}
-
+		output.PrintLocalProjects(projects)
 		return nil
 	},
 }

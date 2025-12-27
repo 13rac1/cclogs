@@ -77,15 +77,30 @@ s3:
 	n, _ := r.Read(output)
 	outputStr := string(output[:n])
 
-	// Verify output contains expected projects
-	if !strings.Contains(outputStr, "empty-project: 0 JSONL") {
-		t.Errorf("expected output to contain 'empty-project: 0 JSONL', got: %s", outputStr)
+	// Verify output contains expected projects in table format
+	if !strings.Contains(outputStr, "Local Projects") {
+		t.Errorf("expected output to contain 'Local Projects', got: %s", outputStr)
 	}
-	if !strings.Contains(outputStr, "project1: 2 JSONL") {
-		t.Errorf("expected output to contain 'project1: 2 JSONL', got: %s", outputStr)
+	if !strings.Contains(outputStr, "empty-project") {
+		t.Errorf("expected output to contain 'empty-project', got: %s", outputStr)
 	}
-	if !strings.Contains(outputStr, "project2: 1 JSONL file") {
-		t.Errorf("expected output to contain 'project2: 1 JSONL file', got: %s", outputStr)
+	if !strings.Contains(outputStr, "project1") {
+		t.Errorf("expected output to contain 'project1', got: %s", outputStr)
+	}
+	if !strings.Contains(outputStr, "project2") {
+		t.Errorf("expected output to contain 'project2', got: %s", outputStr)
+	}
+	// Verify the counts appear in the table
+	lines := strings.Split(outputStr, "\n")
+	found := false
+	for _, line := range lines {
+		if strings.Contains(line, "project1") && strings.Contains(line, "2") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("expected project1 with count 2 in output, got: %s", outputStr)
 	}
 }
 
@@ -142,9 +157,9 @@ s3:
 	n, _ := r.Read(output)
 	outputStr := string(output[:n])
 
-	// Verify output contains "no projects found"
-	if !strings.Contains(outputStr, "(no projects found)") {
-		t.Errorf("expected output to contain '(no projects found)', got: %s", outputStr)
+	// Verify output contains "No local projects found."
+	if !strings.Contains(outputStr, "No local projects found.") {
+		t.Errorf("expected output to contain 'No local projects found.', got: %s", outputStr)
 	}
 }
 
