@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 
 	"github.com/13rac1/ccls/internal/config"
+	"github.com/13rac1/ccls/internal/discover"
 	"github.com/13rac1/ccls/internal/types"
 	"github.com/spf13/cobra"
 )
@@ -39,16 +40,25 @@ showing the count of .jsonl files for each project.`,
 			return err
 		}
 
-		// TODO: Implement list functionality
-		fmt.Printf("Config loaded successfully:\n")
-		fmt.Printf("  Projects root: %s\n", cfg.Local.ProjectsRoot)
-		fmt.Printf("  S3 bucket: %s\n", cfg.S3.Bucket)
-		fmt.Printf("  S3 region: %s\n", cfg.S3.Region)
-		fmt.Printf("  S3 prefix: %s\n", cfg.S3.Prefix)
-		if cfg.S3.Endpoint != "" {
-			fmt.Printf("  S3 endpoint: %s\n", cfg.S3.Endpoint)
+		projects, err := discover.DiscoverLocal(cfg.Local.ProjectsRoot)
+		if err != nil {
+			return fmt.Errorf("discovering local projects: %w", err)
 		}
-		fmt.Println("\nList functionality will be implemented in Phase 2")
+
+		fmt.Println("Local Projects:")
+		if len(projects) == 0 {
+			fmt.Println("  (no projects found)")
+			return nil
+		}
+
+		for _, p := range projects {
+			fileWord := "files"
+			if p.JSONLCount == 1 {
+				fileWord = "file"
+			}
+			fmt.Printf("  %s: %d JSONL %s\n", p.Name, p.JSONLCount, fileWord)
+		}
+
 		return nil
 	},
 }
@@ -118,13 +128,4 @@ func loadConfig() (*types.Config, error) {
 		return nil, fmt.Errorf("loading config from %s: %w", configPath, err)
 	}
 	return cfg, nil
-}
-
-func loadConfigOrExit() *types.Config {
-	cfg, err := loadConfig()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		os.Exit(1)
-	}
-	return cfg
 }
