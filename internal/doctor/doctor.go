@@ -2,6 +2,7 @@ package doctor
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 
@@ -9,7 +10,9 @@ import (
 	"github.com/13rac1/ccls/internal/discover"
 	"github.com/13rac1/ccls/internal/types"
 	"github.com/aws/aws-sdk-go-v2/aws"
+	awshttp "github.com/aws/aws-sdk-go-v2/aws/transport/http"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/aws/smithy-go"
 )
 
 const (
@@ -26,6 +29,31 @@ func crossmark() string {
 	return colorRed + "✗" + colorReset
 }
 
+// dumpAWSError logs detailed information about AWS API errors.
+func dumpAWSError(err error) {
+	fmt.Printf("  → Error details:\n")
+	fmt.Printf("    Type: %T\n", err)
+
+	var apiErr smithy.APIError
+	if errors.As(err, &apiErr) {
+		fmt.Printf("    API Code: %s\n", apiErr.ErrorCode())
+		fmt.Printf("    API Message: %s\n", apiErr.ErrorMessage())
+		fmt.Printf("    API Fault: %v\n", apiErr.ErrorFault())
+	}
+
+	var respErr *awshttp.ResponseError
+	if errors.As(err, &respErr) {
+		fmt.Printf("    HTTP Status: %d\n", respErr.HTTPStatusCode())
+		fmt.Printf("    Request ID: %s\n", respErr.ServiceRequestID())
+		if respErr.Response != nil && respErr.Response.Header != nil {
+			fmt.Printf("    Response Headers:\n")
+			for k, v := range respErr.Response.Header {
+				fmt.Printf("      %s: %v\n", k, v)
+			}
+		}
+	}
+}
+
 // checkRemoteConnectivity verifies S3 bucket access using HeadBucket.
 func checkRemoteConnectivity(ctx context.Context, client *s3.Client, bucket, region string) bool {
 	_, err := client.HeadBucket(ctx, &s3.HeadBucketInput{
@@ -35,6 +63,7 @@ func checkRemoteConnectivity(ctx context.Context, client *s3.Client, bucket, reg
 	if err != nil {
 		fmt.Printf("  %s Failed to connect to S3 bucket\n", crossmark())
 		fmt.Printf("    → Error: %v\n", err)
+		dumpAWSError(err)
 		fmt.Printf("    → Check your AWS credentials and bucket permissions\n")
 		return false
 	}
