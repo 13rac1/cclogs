@@ -31,7 +31,9 @@ type AuthConfig struct {
 
 // Project represents a local or remote project with JSONL file counts.
 type Project struct {
-	Name       string
-	Path       string
-	JSONLCount int
+	Name        string
+	LocalPath   string
+	LocalCount  int
+	RemotePath  string
+	RemoteCount int
 }

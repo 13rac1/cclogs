@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 
 	"github.com/13rac1/ccls/internal/config"
 	"github.com/13rac1/ccls/internal/discover"
@@ -44,12 +45,28 @@ showing the count of .jsonl files for each project.`,
 			return err
 		}
 
-		projects, err := discover.DiscoverLocal(cfg.Local.ProjectsRoot)
+		localProjects, err := discover.DiscoverLocal(cfg.Local.ProjectsRoot)
 		if err != nil {
 			return fmt.Errorf("discovering local projects: %w", err)
 		}
 
-		output.PrintLocalProjects(projects)
+		// Discover remote projects if S3 is configured
+		// Gracefully skip remote discovery if S3 is not accessible
+		var remoteProjects []types.Project
+		if cfg.S3.Bucket != "" {
+			s3Client, err := config.NewS3Client(cmd.Context(), cfg)
+			if err == nil {
+				remoteProjects, err = discover.DiscoverRemote(cmd.Context(), s3Client, cfg.S3.Bucket, cfg.S3.Prefix)
+				if err != nil {
+					fmt.Fprintf(os.Stderr, "Warning: failed to discover remote projects: %v\n", err)
+				}
+			}
+		}
+
+		// Merge local and remote projects
+		merged := mergeProjects(localProjects, remoteProjects)
+
+		output.PrintProjects(merged)
 		return nil
 	},
 }
@@ -150,4 +167,47 @@ func printWelcomeMessage(configPath string) {
 	fmt.Println("  ccls doctor   # Validate configuration")
 	fmt.Println("  ccls list     # List local and remote projects")
 	fmt.Println("  ccls upload   # Upload local JSONL files")
+}
+
+// mergeProjects combines local and remote projects into a single list.
+// Projects with the same name are merged, combining their local and remote counts.
+func mergeProjects(local, remote []types.Project) []types.Project {
+	projectMap := make(map[string]*types.Project)
+
+	// Add local projects to map
+	for _, p := range local {
+		projectMap[p.Name] = &types.Project{
+			Name:       p.Name,
+			LocalPath:  p.LocalPath,
+			LocalCount: p.LocalCount,
+		}
+	}
+
+	// Merge remote projects
+	for _, p := range remote {
+		if existing, ok := projectMap[p.Name]; ok {
+			// Project exists locally and remotely
+			existing.RemoteCount = p.RemoteCount
+			existing.RemotePath = p.RemotePath
+		} else {
+			// Remote-only project
+			projectMap[p.Name] = &types.Project{
+				Name:        p.Name,
+				RemotePath:  p.RemotePath,
+				RemoteCount: p.RemoteCount,
+			}
+		}
+	}
+
+	// Convert map to sorted slice
+	var merged []types.Project
+	for _, p := range projectMap {
+		merged = append(merged, *p)
+	}
+
+	sort.Slice(merged, func(i, j int) bool {
+		return merged[i].Name < merged[j].Name
+	})
+
+	return merged
 }

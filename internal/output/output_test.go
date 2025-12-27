@@ -20,8 +20,8 @@ func TestPrintLocalProjects(t *testing.T) {
 		{
 			name: "multiple projects",
 			projects: []types.Project{
-				{Name: "project-a", JSONLCount: 5},
-				{Name: "project-b", JSONLCount: 12},
+				{Name: "project-a", LocalCount: 5},
+				{Name: "project-b", LocalCount: 12},
 			},
 			contains: []string{
 				"Local Projects",
@@ -36,7 +36,7 @@ func TestPrintLocalProjects(t *testing.T) {
 		{
 			name: "single project",
 			projects: []types.Project{
-				{Name: "my-project", JSONLCount: 3},
+				{Name: "my-project", LocalCount: 3},
 			},
 			contains: []string{
 				"Local Projects",
@@ -71,7 +71,7 @@ func TestPrintLocalProjects(t *testing.T) {
 		{
 			name: "project with zero files",
 			projects: []types.Project{
-				{Name: "empty-project", JSONLCount: 0},
+				{Name: "empty-project", LocalCount: 0},
 			},
 			contains: []string{
 				"Local Projects",
@@ -82,7 +82,7 @@ func TestPrintLocalProjects(t *testing.T) {
 		{
 			name: "project with large file count",
 			projects: []types.Project{
-				{Name: "big-project", JSONLCount: 999},
+				{Name: "big-project", LocalCount: 999},
 			},
 			contains: []string{
 				"Local Projects",
@@ -115,7 +115,7 @@ func TestPrintLocalProjects(t *testing.T) {
 
 func TestPrintLocalProjects_TableFormat(t *testing.T) {
 	projects := []types.Project{
-		{Name: "test-project", JSONLCount: 5},
+		{Name: "test-project", LocalCount: 5},
 	}
 
 	output := captureStdout(func() {
@@ -135,7 +135,7 @@ func TestPrintLocalProjects_TableFormat(t *testing.T) {
 
 func TestPrintLocalProjects_HeaderFormatting(t *testing.T) {
 	projects := []types.Project{
-		{Name: "test", JSONLCount: 1},
+		{Name: "test", LocalCount: 1},
 	}
 
 	output := captureStdout(func() {
@@ -155,6 +155,187 @@ func TestPrintLocalProjects_HeaderFormatting(t *testing.T) {
 
 	if !foundHeader {
 		t.Errorf("table header not found in output:\n%s", output)
+	}
+}
+
+func TestPrintProjects(t *testing.T) {
+	tests := []struct {
+		name     string
+		projects []types.Project
+		contains []string
+	}{
+		{
+			name: "local and remote match",
+			projects: []types.Project{
+				{Name: "project-a", LocalCount: 5, RemoteCount: 5},
+			},
+			contains: []string{
+				"Projects",
+				"PROJECT",
+				"LOCAL",
+				"REMOTE",
+				"STATUS",
+				"project-a",
+				"5",
+				"OK",
+			},
+		},
+		{
+			name: "local only",
+			projects: []types.Project{
+				{Name: "project-b", LocalCount: 3, RemoteCount: 0},
+			},
+			contains: []string{
+				"Projects",
+				"project-b",
+				"3",
+				"-",
+				"Local-only",
+			},
+		},
+		{
+			name: "remote only",
+			projects: []types.Project{
+				{Name: "project-c", LocalCount: 0, RemoteCount: 10},
+			},
+			contains: []string{
+				"Projects",
+				"project-c",
+				"-",
+				"10",
+				"Remote-only",
+			},
+		},
+		{
+			name: "mismatch",
+			projects: []types.Project{
+				{Name: "project-d", LocalCount: 5, RemoteCount: 3},
+			},
+			contains: []string{
+				"Projects",
+				"project-d",
+				"5",
+				"3",
+				"Mismatch",
+			},
+		},
+		{
+			name: "mixed statuses",
+			projects: []types.Project{
+				{Name: "synced", LocalCount: 5, RemoteCount: 5},
+				{Name: "local-only", LocalCount: 2, RemoteCount: 0},
+				{Name: "remote-only", LocalCount: 0, RemoteCount: 8},
+				{Name: "mismatch", LocalCount: 3, RemoteCount: 7},
+			},
+			contains: []string{
+				"synced",
+				"OK",
+				"local-only",
+				"Local-only",
+				"remote-only",
+				"Remote-only",
+				"mismatch",
+				"Mismatch",
+			},
+		},
+		{
+			name:     "empty list",
+			projects: []types.Project{},
+			contains: []string{
+				"No projects found.",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			output := captureStdout(func() {
+				PrintProjects(tt.projects)
+			})
+
+			for _, want := range tt.contains {
+				if !strings.Contains(output, want) {
+					t.Errorf("output missing expected string %q\nGot:\n%s", want, output)
+				}
+			}
+		})
+	}
+}
+
+func TestFormatCount(t *testing.T) {
+	tests := []struct {
+		count int
+		want  string
+	}{
+		{count: 0, want: "-"},
+		{count: 1, want: "1"},
+		{count: 10, want: "10"},
+		{count: 999, want: "999"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.want, func(t *testing.T) {
+			got := formatCount(tt.count)
+			if got != tt.want {
+				t.Errorf("formatCount(%d) = %q, want %q", tt.count, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestDetermineStatus(t *testing.T) {
+	tests := []struct {
+		name        string
+		localCount  int
+		remoteCount int
+		want        string
+	}{
+		{
+			name:        "both zero",
+			localCount:  0,
+			remoteCount: 0,
+			want:        "-",
+		},
+		{
+			name:        "local only",
+			localCount:  5,
+			remoteCount: 0,
+			want:        "Local-only",
+		},
+		{
+			name:        "remote only",
+			localCount:  0,
+			remoteCount: 10,
+			want:        "Remote-only",
+		},
+		{
+			name:        "match",
+			localCount:  5,
+			remoteCount: 5,
+			want:        "OK",
+		},
+		{
+			name:        "mismatch local higher",
+			localCount:  10,
+			remoteCount: 5,
+			want:        "Mismatch",
+		},
+		{
+			name:        "mismatch remote higher",
+			localCount:  3,
+			remoteCount: 8,
+			want:        "Mismatch",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := determineStatus(tt.localCount, tt.remoteCount)
+			if got != tt.want {
+				t.Errorf("determineStatus(%d, %d) = %q, want %q",
+					tt.localCount, tt.remoteCount, got, tt.want)
+			}
+		})
 	}
 }
 

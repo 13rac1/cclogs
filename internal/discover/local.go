@@ -57,8 +57,8 @@ func DiscoverLocal(projectsRoot string) ([]types.Project, error) {
 
 		projects = append(projects, types.Project{
 			Name:       projectName,
-			Path:       projectPath,
-			JSONLCount: count,
+			LocalPath:  projectPath,
+			LocalCount: count,
 		})
 	}
 

@@ -171,7 +171,7 @@ func RunChecks(cfg *types.Config, configPath string, skipRemote bool) bool {
 
 	totalJSONL := 0
 	for _, p := range projects {
-		totalJSONL += p.JSONLCount
+		totalJSONL += p.LocalCount
 	}
 
 	if len(projects) == 0 {

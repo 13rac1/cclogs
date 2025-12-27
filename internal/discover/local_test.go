@@ -36,8 +36,8 @@ func TestDiscoverLocal(t *testing.T) {
 				if projects[0].Name != "my-project" {
 					t.Errorf("expected project name 'my-project', got %q", projects[0].Name)
 				}
-				if projects[0].JSONLCount != 2 {
-					t.Errorf("expected 2 JSONL files, got %d", projects[0].JSONLCount)
+				if projects[0].LocalCount != 2 {
+					t.Errorf("expected 2 JSONL files, got %d", projects[0].LocalCount)
 				}
 			},
 		},
@@ -62,8 +62,8 @@ func TestDiscoverLocal(t *testing.T) {
 				if projects[0].Name != "nested-project" {
 					t.Errorf("expected project name 'nested-project', got %q", projects[0].Name)
 				}
-				if projects[0].JSONLCount != 3 {
-					t.Errorf("expected 3 JSONL files, got %d", projects[0].JSONLCount)
+				if projects[0].LocalCount != 3 {
+					t.Errorf("expected 3 JSONL files, got %d", projects[0].LocalCount)
 				}
 			},
 		},
@@ -85,8 +85,8 @@ func TestDiscoverLocal(t *testing.T) {
 				if projects[0].Name != "empty-project" {
 					t.Errorf("expected project name 'empty-project', got %q", projects[0].Name)
 				}
-				if projects[0].JSONLCount != 0 {
-					t.Errorf("expected 0 JSONL files, got %d", projects[0].JSONLCount)
+				if projects[0].LocalCount != 0 {
+					t.Errorf("expected 0 JSONL files, got %d", projects[0].LocalCount)
 				}
 			},
 		},
@@ -119,8 +119,8 @@ func TestDiscoverLocal(t *testing.T) {
 				if projects[0].Name != "real-project" {
 					t.Errorf("expected project name 'real-project', got %q", projects[0].Name)
 				}
-				if projects[0].JSONLCount != 1 {
-					t.Errorf("expected 1 JSONL file, got %d", projects[0].JSONLCount)
+				if projects[0].LocalCount != 1 {
+					t.Errorf("expected 1 JSONL file, got %d", projects[0].LocalCount)
 				}
 			},
 		},
@@ -165,8 +165,8 @@ func TestDiscoverLocal(t *testing.T) {
 			wantErr:   false,
 			wantCount: 1,
 			validate: func(t *testing.T, projects []types.Project) {
-				if projects[0].JSONLCount != 3 {
-					t.Errorf("expected 3 JSONL files (case insensitive), got %d", projects[0].JSONLCount)
+				if projects[0].LocalCount != 3 {
+					t.Errorf("expected 3 JSONL files (case insensitive), got %d", projects[0].LocalCount)
 				}
 			},
 		},
@@ -224,11 +224,11 @@ func TestDiscoverLocal(t *testing.T) {
 				if p.Name == "" {
 					t.Error("project has empty name")
 				}
-				if p.Path == "" {
+				if p.LocalPath == "" {
 					t.Error("project has empty path")
 				}
-				if p.JSONLCount < 0 {
-					t.Errorf("project %s has negative JSONL count: %d", p.Name, p.JSONLCount)
+				if p.LocalCount < 0 {
+					t.Errorf("project %s has negative JSONL count: %d", p.Name, p.LocalCount)
 				}
 			}
 		})
