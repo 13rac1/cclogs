@@ -1,3 +1,5 @@
+// Package output provides formatted output for project listings.
+// It supports both human-readable table output and machine-readable JSON output.
 package output
 
 import (

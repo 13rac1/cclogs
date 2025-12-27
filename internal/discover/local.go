@@ -1,3 +1,6 @@
+// Package discover handles discovery of local and remote Claude Code projects.
+// It scans the local filesystem for project directories and .jsonl files,
+// and queries S3 for remote projects and object counts.
 package discover
 
 import (

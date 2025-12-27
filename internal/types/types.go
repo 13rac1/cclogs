@@ -1,3 +1,5 @@
+// Package types defines the core data structures used throughout ccls.
+// This includes configuration structs, project metadata, and shared types.
 package types
 
 // Config represents the complete configuration for ccls.

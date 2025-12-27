@@ -1,3 +1,6 @@
+// Package doctor provides configuration and connectivity validation for ccls.
+// It checks that the config is valid, local projects directory exists,
+// and S3 connectivity works with the configured credentials.
 package doctor
 
 import (

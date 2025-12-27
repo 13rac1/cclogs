@@ -1,3 +1,6 @@
+// Package config handles loading, validation, and management of ccls configuration files.
+// It provides functions to read YAML config, apply defaults, validate required fields,
+// and create starter configurations for new users.
 package config
 
 import (

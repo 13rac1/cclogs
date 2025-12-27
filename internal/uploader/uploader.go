@@ -1,3 +1,6 @@
+// Package uploader handles discovery and upload of JSONL files to S3-compatible storage.
+// It discovers all .jsonl files across local projects, computes their S3 keys,
+// checks for existing remote files, and uploads new or modified files using multipart uploads.
 package uploader
 
 import (
