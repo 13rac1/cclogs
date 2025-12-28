@@ -1,0 +1,91 @@
+project_name: cclogs
+
+before:
+  hooks:
+    - go mod tidy
+    - go test ./...
+
+builds:
+  - id: cclogs
+    binary: cclogs
+    main: ./cmd/cclogs
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+      - -X main.version={{.Version}}
+      - -X main.commit={{.Commit}}
+      - -X main.date={{.Date}}
+    flags:
+      - -trimpath
+
+archives:
+  - id: cclogs
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    format_overrides:
+      - goos: windows
+        format: zip
+    files:
+      - LICENSE
+      - README.md
+      - docs/*
+
+checksum:
+  name_template: "checksums.txt"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"
+      - "merge conflict"
+      - Merge pull request
+      - Merge remote-tracking branch
+      - Merge branch
+  groups:
+    - title: Features
+      regexp: "^.*feat[(\\w)]*:+.*$"
+      order: 0
+    - title: Bug Fixes
+      regexp: "^.*fix[(\\w)]*:+.*$"
+      order: 1
+    - title: Performance Improvements
+      regexp: "^.*perf[(\\w)]*:+.*$"
+      order: 2
+    - title: Documentation
+      regexp: "^.*docs[(\\w)]*:+.*$"
+      order: 3
+    - title: Others
+      order: 999
+
+brews:
+  - name: cclogs
+    repository:
+      owner: 13rac1
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+    folder: Formula
+    homepage: https://github.com/13rac1/cclogs
+    description: "Claude Code Log Shipper - backup session logs to S3-compatible storage"
+    license: "MIT"
+    skip_upload: auto
+    test: |
+      system "#{bin}/cclogs", "--version"
+    install: |
+      bin.install "cclogs"
+
+release:
+  github:
+    owner: 13rac1
+    name: cclogs
+  draft: false
+  prerelease: auto
+  name_template: "{{.ProjectName}} {{.Version}}"

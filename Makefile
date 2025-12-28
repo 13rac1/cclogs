@@ -1,4 +1,4 @@
-.PHONY: build test fmt format-check clean install help
+.PHONY: build test fmt format-check clean install release release-dry-run help
 
 BINARY_NAME=cclogs
 BIN_DIR=bin
@@ -33,6 +33,16 @@ clean:
 ## install: Install the binary to $GOPATH/bin
 install:
 	go install $(MAIN_PATH)
+
+## release: Create a new release (example: make release VERSION=v1.0.0)
+release:
+	@if [ -z "$(VERSION)" ]; then echo "VERSION is required. Usage: make release VERSION=v1.0.0"; exit 1; fi
+	git tag -a $(VERSION) -m "Release $(VERSION)"
+	git push origin $(VERSION)
+
+## release-dry-run: Test release process locally
+release-dry-run:
+	goreleaser release --snapshot --clean
 
 ## help: Display this help message
 help:

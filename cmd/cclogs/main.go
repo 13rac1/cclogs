@@ -17,6 +17,12 @@ import (
 )
 
 var (
+	version = "dev"
+	commit  = "none"
+	date    = "unknown"
+)
+
+var (
 	configPath        string
 	defaultConfigPath string
 )
@@ -29,8 +35,9 @@ func main() {
 }
 
 var rootCmd = &cobra.Command{
-	Use:   "cclogs",
-	Short: "Claude Code Log Shipper - upload session logs to S3",
+	Use:     "cclogs",
+	Short:   "Claude Code Log Shipper - upload session logs to S3",
+	Version: fmt.Sprintf("%s (commit: %s, built: %s)", version, commit, date),
 	Long: `cclogs discovers Claude Code session logs (*.jsonl files) from ~/.claude/projects/
 and uploads them to S3-compatible storage for backup and archival.`,
 }

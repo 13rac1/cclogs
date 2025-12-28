@@ -15,11 +15,20 @@ Claude Code stores session transcripts as `.jsonl` files under `~/.claude/projec
 
 ## Installation
 
+### Homebrew (macOS/Linux)
+```bash
+brew install 13rac1/tap/cclogs
+```
+
+### Go Install
 ```bash
 go install github.com/13rac1/cclogs/cmd/cclogs@latest
 ```
 
 Ensure `$GOPATH/bin` (or `$HOME/go/bin`) is in your `PATH`.
+
+### Download Binary
+Download the latest release from [GitHub Releases](https://github.com/13rac1/cclogs/releases)
 
 ## Quick Start
 
