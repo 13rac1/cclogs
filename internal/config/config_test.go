@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/13rac1/ccls/internal/types"
+	"github.com/13rac1/cclogs/internal/types"
 )
 
 func TestLoad(t *testing.T) {
@@ -168,7 +168,7 @@ s3:
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Create temporary config file
-			tmpfile, err := os.CreateTemp("", "ccls-test-*.yaml")
+			tmpfile, err := os.CreateTemp("", "cclogs-test-*.yaml")
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -290,7 +290,7 @@ func TestCreateStarterConfig(t *testing.T) {
 		},
 		{
 			name:    "create with tilde path",
-			path:    filepath.Join("~", ".ccls-test-"+t.Name(), "config.yaml"),
+			path:    filepath.Join("~", ".cclogs-test-"+t.Name(), "config.yaml"),
 			wantErr: false,
 		},
 	}
@@ -336,7 +336,7 @@ func TestCreateStarterConfig(t *testing.T) {
 				t.Fatalf("failed to read config file: %v", err)
 			}
 
-			if !strings.Contains(string(content), "ccls configuration file") {
+			if !strings.Contains(string(content), "cclogs configuration file") {
 				t.Error("config file missing expected header comment")
 			}
 			if !strings.Contains(string(content), "YOUR-BUCKET-NAME") {

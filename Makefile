@@ -1,8 +1,8 @@
 .PHONY: build test fmt format-check clean install help
 
-BINARY_NAME=ccls
+BINARY_NAME=cclogs
 BIN_DIR=bin
-MAIN_PATH=./cmd/ccls
+MAIN_PATH=./cmd/cclogs
 
 ## build: Build the binary
 build:

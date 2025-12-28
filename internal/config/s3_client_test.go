@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/13rac1/ccls/internal/types"
+	"github.com/13rac1/cclogs/internal/types"
 )
 
 func TestNewS3Client(t *testing.T) {

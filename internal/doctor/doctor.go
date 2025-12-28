@@ -1,4 +1,4 @@
-// Package doctor provides configuration and connectivity validation for ccls.
+// Package doctor provides configuration and connectivity validation for cclogs.
 // It checks that the config is valid, local projects directory exists,
 // and S3 connectivity works with the configured credentials.
 package doctor
@@ -9,9 +9,9 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/13rac1/ccls/internal/config"
-	"github.com/13rac1/ccls/internal/discover"
-	"github.com/13rac1/ccls/internal/types"
+	"github.com/13rac1/cclogs/internal/config"
+	"github.com/13rac1/cclogs/internal/discover"
+	"github.com/13rac1/cclogs/internal/types"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	awshttp "github.com/aws/aws-sdk-go-v2/aws/transport/http"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
@@ -77,7 +77,7 @@ func checkRemoteConnectivity(ctx context.Context, client *s3.Client, bucket, reg
 // RunChecks performs all doctor checks and returns whether all passed.
 // Remote connectivity checks can be skipped by setting skipRemote to true.
 func RunChecks(cfg *types.Config, configPath string, skipRemote bool) bool {
-	fmt.Println("ccls doctor - Configuration and connectivity check")
+	fmt.Println("cclogs doctor - Configuration and connectivity check")
 	fmt.Println()
 
 	allPassed := true
@@ -236,7 +236,7 @@ func RunChecks(cfg *types.Config, configPath string, skipRemote bool) bool {
 
 func printSummary(allPassed bool) {
 	if allPassed {
-		fmt.Println("All checks passed! Ready to use ccls.")
+		fmt.Println("All checks passed! Ready to use cclogs.")
 	} else {
 		fmt.Println("Some checks failed. Please fix the issues above.")
 	}

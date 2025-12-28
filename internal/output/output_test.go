@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/13rac1/ccls/internal/types"
+	"github.com/13rac1/cclogs/internal/types"
 )
 
 func TestPrintLocalProjects(t *testing.T) {

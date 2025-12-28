@@ -1,4 +1,4 @@
-module github.com/13rac1/ccls
+module github.com/13rac1/cclogs
 
 go 1.25.5
 

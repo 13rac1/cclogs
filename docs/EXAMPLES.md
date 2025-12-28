@@ -1,6 +1,6 @@
 # Usage Examples
 
-This guide provides practical, step-by-step examples for common **ccls** workflows.
+This guide provides practical, step-by-step examples for common **cclogs** workflows.
 
 ## Table of Contents
 
@@ -13,18 +13,18 @@ This guide provides practical, step-by-step examples for common **ccls** workflo
 
 ## First-Time Setup
 
-Complete workflow for setting up ccls for the first time.
+Complete workflow for setting up cclogs for the first time.
 
-### Step 1: Install ccls
+### Step 1: Install cclogs
 
 ```bash
-go install github.com/13rac1/ccls/cmd/ccls@latest
+go install github.com/13rac1/cclogs/cmd/cclogs@latest
 ```
 
 Verify installation:
 
 ```bash
-ccls --help
+cclogs --help
 ```
 
 ### Step 2: Generate Starter Configuration
@@ -32,15 +32,15 @@ ccls --help
 Run any command to create the default configuration file:
 
 ```bash
-ccls list
+cclogs list
 ```
 
 **Output**:
 ```
-Welcome to ccls!
+Welcome to cclogs!
 
 A starter configuration file has been created at:
-  /Users/username/.ccls/config.yaml
+  /Users/username/.cclogs/config.yaml
 
 Please edit this file and configure:
   1. s3.bucket - Your S3 bucket name
@@ -52,9 +52,9 @@ For S3-compatible providers (Backblaze B2, MinIO, etc.):
   - Set s3.force_path_style: true if required
 
 After configuration, run:
-  ccls doctor   # Validate configuration
-  ccls list     # List local and remote projects
-  ccls upload   # Upload local JSONL files
+  cclogs doctor   # Validate configuration
+  cclogs list     # List local and remote projects
+  cclogs upload   # Upload local JSONL files
 ```
 
 ### Step 3: Configure S3 Credentials
@@ -92,12 +92,12 @@ chmod 600 ~/.aws/credentials
 
 **Option B: Using Static Credentials (Not Recommended)**
 
-Edit `~/.ccls/config.yaml` directly, but be aware this is less secure.
+Edit `~/.cclogs/config.yaml` directly, but be aware this is less secure.
 
 ### Step 4: Edit Configuration File
 
 ```bash
-nano ~/.ccls/config.yaml
+nano ~/.cclogs/config.yaml
 ```
 
 **Example for AWS S3**:
@@ -135,16 +135,16 @@ auth:
 ### Step 5: Validate Configuration
 
 ```bash
-ccls doctor
+cclogs doctor
 ```
 
 **Expected output**:
 
 ```
-ccls doctor - Configuration and connectivity check
+cclogs doctor - Configuration and connectivity check
 
 Configuration:
-  ✓ Config file loaded: /Users/username/.ccls/config.yaml
+  ✓ Config file loaded: /Users/username/.cclogs/config.yaml
   ✓ S3 bucket configured: my-claude-logs
   ✓ S3 region configured: us-west-002
   ✓ S3 prefix configured: claude-code/
@@ -158,7 +158,7 @@ Remote connectivity:
   ✓ S3 client initialized
   ✓ Connected to bucket: my-claude-logs (us-west-002)
 
-All checks passed! Ready to use ccls.
+All checks passed! Ready to use cclogs.
 ```
 
 ### Step 6: Preview Upload
@@ -166,7 +166,7 @@ All checks passed! Ready to use ccls.
 Use dry-run to see what will be uploaded:
 
 ```bash
-ccls upload --dry-run
+cclogs upload --dry-run
 ```
 
 **Output**:
@@ -187,7 +187,7 @@ Summary: 3 to upload (8.2 MB), 0 to skip
 ### Step 7: Perform First Upload
 
 ```bash
-ccls upload
+cclogs upload
 ```
 
 **Output**:
@@ -203,7 +203,7 @@ Upload complete: 3 uploaded (8.2 MB), 0 skipped
 ### Step 8: Verify Upload
 
 ```bash
-ccls list
+cclogs list
 ```
 
 **Output**:
@@ -229,7 +229,7 @@ Daily or weekly workflow to back up new session logs.
 See what's available locally:
 
 ```bash
-ccls list
+cclogs list
 ```
 
 This shows you which projects have new logs to upload (look for "Local-only" or "Mismatch" status).
@@ -237,7 +237,7 @@ This shows you which projects have new logs to upload (look for "Local-only" or 
 ### Upload New Logs
 
 ```bash
-ccls upload
+cclogs upload
 ```
 
 **Output when there are new files**:
@@ -258,14 +258,14 @@ Upload complete: 0 uploaded (0 B), 5 skipped
 ### Verify
 
 ```bash
-ccls list
+cclogs list
 ```
 
 All projects should show "OK" status.
 
 ## Multi-Machine Setup
 
-Using ccls across multiple machines with the same S3 bucket.
+Using cclogs across multiple machines with the same S3 bucket.
 
 ### Scenario
 
@@ -280,11 +280,11 @@ You have Claude Code on:
 
 ```bash
 # Install
-go install github.com/13rac1/ccls/cmd/ccls@latest
+go install github.com/13rac1/cclogs/cmd/cclogs@latest
 
 # Configure
-ccls list  # Generates config
-nano ~/.ccls/config.yaml
+cclogs list  # Generates config
+nano ~/.cclogs/config.yaml
 ```
 
 Config for Machine 1:
@@ -308,11 +308,11 @@ auth:
 
 ```bash
 # Install
-go install github.com/13rac1/ccls/cmd/ccls@latest
+go install github.com/13rac1/cclogs/cmd/cclogs@latest
 
 # Configure
-ccls list  # Generates config
-nano ~/.ccls/config.yaml
+cclogs list  # Generates config
+nano ~/.cclogs/config.yaml
 ```
 
 Config for Machine 2:
@@ -362,21 +362,21 @@ If both files are identical (same size), only one is uploaded. The second machin
 **On Work Laptop**:
 
 ```bash
-ccls upload
+cclogs upload
 # Uploads work logs
 ```
 
 **On Home Desktop**:
 
 ```bash
-ccls upload
+cclogs upload
 # Uploads home logs + skips duplicates from work
 ```
 
 **View All Projects**:
 
 ```bash
-ccls list
+cclogs list
 ```
 
 This shows the union of all projects from all machines.
@@ -387,7 +387,7 @@ If you work on the same project on both machines:
 
 ```bash
 # Machine 1
-ccls list
+cclogs list
 ```
 
 **Output**:
@@ -412,7 +412,7 @@ This is working as designed. Each machine uploads its own logs, and all are pres
 ### View All Projects
 
 ```bash
-ccls list
+cclogs list
 ```
 
 Shows table with local count, remote count, and status.
@@ -426,7 +426,7 @@ Shows table with local count, remote count, and status.
 ### JSON Output for Scripting
 
 ```bash
-ccls list --json
+cclogs list --json
 ```
 
 **Example output**:
@@ -455,10 +455,10 @@ Parse with `jq`:
 
 ```bash
 # Count total local files
-ccls list --json | jq '.projects | map(.localCount) | add'
+cclogs list --json | jq '.projects | map(.localCount) | add'
 
 # Find projects that need upload
-ccls list --json | jq '.projects[] | select(.localCount > .remoteCount)'
+cclogs list --json | jq '.projects[] | select(.localCount > .remoteCount)'
 ```
 
 ### Dry-Run Before Upload
@@ -466,7 +466,7 @@ ccls list --json | jq '.projects[] | select(.localCount > .remoteCount)'
 Always available to preview:
 
 ```bash
-ccls upload --dry-run
+cclogs upload --dry-run
 ```
 
 ## Common Scenarios
@@ -478,7 +478,7 @@ You start a new Claude Code project.
 **Before**:
 
 ```bash
-ccls list
+cclogs list
 ```
 
 ```
@@ -495,7 +495,7 @@ Projects
 **After**:
 
 ```bash
-ccls list
+cclogs list
 ```
 
 ```
@@ -511,13 +511,13 @@ Projects
 **Upload**:
 
 ```bash
-ccls upload
+cclogs upload
 ```
 
 **Verify**:
 
 ```bash
-ccls list
+cclogs list
 ```
 
 ```
@@ -536,7 +536,7 @@ You delete a project locally but it still exists remotely (backup preserved).
 
 ```bash
 rm -rf ~/.claude/projects/old-project
-ccls list
+cclogs list
 ```
 
 ```
@@ -549,7 +549,7 @@ Projects
 +---------------------------+-------+--------+------------+
 ```
 
-This is expected. ccls never deletes remote files. Your backup is preserved.
+This is expected. cclogs never deletes remote files. Your backup is preserved.
 
 ### Scenario 3: Updating Existing Log File
 
@@ -570,7 +570,7 @@ session-2024-12-27.jsonl  (3.1 MB, modified)
 **Upload**:
 
 ```bash
-ccls upload
+cclogs upload
 ```
 
 Output:
@@ -588,7 +588,7 @@ The file is re-uploaded because the size changed. The remote version is overwrit
 Verify your current configuration:
 
 ```bash
-ccls doctor
+cclogs doctor
 ```
 
 This is useful when:
@@ -607,14 +607,14 @@ This is useful when:
 ls -la ~/.claude/projects/
 
 # Verify config
-ccls doctor
+cclogs doctor
 ```
 
 **Possible causes**:
 
 1. **Wrong projects_root**: Check `local.projects_root` in config
 2. **No .jsonl files**: Verify files end with `.jsonl` extension
-3. **All files already uploaded**: This is normal - run `ccls list` to verify
+3. **All files already uploaded**: This is normal - run `cclogs list` to verify
 
 **Solution**:
 
@@ -625,8 +625,8 @@ ls ~/.claude/projects/
 # Check if files are .jsonl
 ls ~/.claude/projects/*/
 
-# Verify what ccls sees
-ccls list
+# Verify what cclogs sees
+cclogs list
 ```
 
 ### Problem: "Access Denied" when uploading
@@ -634,7 +634,7 @@ ccls list
 **Diagnosis**:
 
 ```bash
-ccls doctor
+cclogs doctor
 ```
 
 Look for S3 connectivity errors.
@@ -660,8 +660,8 @@ aws s3 ls s3://your-bucket-name \
 Fix credentials or permissions, then retry:
 
 ```bash
-ccls doctor
-ccls upload
+cclogs doctor
+cclogs upload
 ```
 
 ### Problem: "Mismatch" status after upload
@@ -669,7 +669,7 @@ ccls upload
 **Diagnosis**:
 
 ```bash
-ccls list
+cclogs list
 ```
 
 ```
@@ -684,7 +684,7 @@ Projects
 **This is usually normal**. Causes:
 
 1. **Multi-machine setup**: Other machines uploaded different logs
-2. **Manual S3 upload**: Files added to bucket outside ccls
+2. **Manual S3 upload**: Files added to bucket outside cclogs
 3. **Local deletion**: You deleted local files but remote preserved
 
 **Not a problem** unless:
@@ -695,10 +695,10 @@ Projects
 
 ```bash
 # Upload local files
-ccls upload
+cclogs upload
 
 # Check again
-ccls list
+cclogs list
 ```
 
 If remote count is higher, it's because other machines or manual uploads added files. This is working correctly.
@@ -710,7 +710,7 @@ If remote count is higher, it's because other machines or manual uploads added f
 Large files take time. Check:
 
 ```bash
-ccls upload --dry-run
+cclogs upload --dry-run
 ```
 
 Look at file sizes.
@@ -718,11 +718,11 @@ Look at file sizes.
 **Solutions**:
 
 1. **Check network speed**: Large logs on slow connections take time
-2. **Multipart upload works automatically**: ccls uses AWS SDK's multipart uploader for files > 5MB
-3. **Run in background**: ccls runs synchronously; use `nohup` for long uploads:
+2. **Multipart upload works automatically**: cclogs uses AWS SDK's multipart uploader for files > 5MB
+3. **Run in background**: cclogs runs synchronously; use `nohup` for long uploads:
 
 ```bash
-nohup ccls upload > upload.log 2>&1 &
+nohup cclogs upload > upload.log 2>&1 &
 ```
 
 ### Problem: Changed S3 provider, how to migrate?
@@ -737,7 +737,7 @@ Use AWS CLI or rclone to copy:
 aws s3 sync s3://old-bucket/claude-code/ ./backup/
 ```
 
-**Step 2**: Update ccls config:
+**Step 2**: Update cclogs config:
 
 ```yaml
 s3:
@@ -753,14 +753,14 @@ auth:
 **Step 3**: Upload to new bucket:
 
 ```bash
-ccls doctor  # Verify new config
-ccls upload  # Upload all local files to new bucket
+cclogs doctor  # Verify new config
+cclogs upload  # Upload all local files to new bucket
 ```
 
 **Step 4**: Verify:
 
 ```bash
-ccls list
+cclogs list
 ```
 
 All local files should now be in the new bucket.
@@ -769,25 +769,25 @@ All local files should now be in the new bucket.
 
 **Scenario**: Set up a new machine and restore all logs from S3.
 
-**Step 1**: Install ccls and configure:
+**Step 1**: Install cclogs and configure:
 
 ```bash
-go install github.com/13rac1/ccls/cmd/ccls@latest
-ccls list  # Generate config
-nano ~/.ccls/config.yaml
+go install github.com/13rac1/cclogs/cmd/cclogs@latest
+cclogs list  # Generate config
+nano ~/.cclogs/config.yaml
 ```
 
 **Step 2**: See what's in S3:
 
 ```bash
-ccls list
+cclogs list
 ```
 
 This shows all remote projects.
 
 **Step 3**: Download logs manually:
 
-ccls does not have a `download` command (by design). Use AWS CLI:
+cclogs does not have a `download` command (by design). Use AWS CLI:
 
 ```bash
 # Download all logs
@@ -804,7 +804,7 @@ aws s3 sync s3://my-bucket/claude-code/my-web-app/ ~/.claude/projects/my-web-app
 **Step 4**: Verify:
 
 ```bash
-ccls list
+cclogs list
 ```
 
 Local and remote counts should now match.
@@ -814,22 +814,22 @@ Local and remote counts should now match.
 1. **Run regularly**: Set up a cron job or scheduled task
    ```bash
    # crontab -e
-   0 */6 * * * /Users/username/go/bin/ccls upload >> /var/log/ccls.log 2>&1
+   0 */6 * * * /Users/username/go/bin/cclogs upload >> /var/log/cclogs.log 2>&1
    ```
 
 2. **Use dry-run first**: Preview before uploading
    ```bash
-   ccls upload --dry-run
+   cclogs upload --dry-run
    ```
 
 3. **Verify with doctor**: After config changes
    ```bash
-   ccls doctor
+   cclogs doctor
    ```
 
 4. **Check status periodically**: Ensure backups are current
    ```bash
-   ccls list
+   cclogs list
    ```
 
 5. **Use AWS profiles**: More secure than static credentials
@@ -844,5 +844,5 @@ Local and remote counts should now match.
 
 8. **Use --json for automation**: Parse output in scripts
    ```bash
-   ccls list --json | jq '.projects[] | select(.localCount > .remoteCount)'
+   cclogs list --json | jq '.projects[] | select(.localCount > .remoteCount)'
    ```

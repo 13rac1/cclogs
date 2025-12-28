@@ -49,7 +49,7 @@ s3:
 	// Set command-line args
 	oldArgs := os.Args
 	defer func() { os.Args = oldArgs }()
-	os.Args = []string{"ccls", "--config", configPath, "list"}
+	os.Args = []string{"cclogs", "--config", configPath, "list"}
 
 	// Capture output
 	var buf bytes.Buffer
@@ -129,7 +129,7 @@ s3:
 	// Set config path flag
 	oldArgs := os.Args
 	defer func() { os.Args = oldArgs }()
-	os.Args = []string{"ccls", "--config", configPath, "list"}
+	os.Args = []string{"cclogs", "--config", configPath, "list"}
 
 	// Capture output
 	var buf bytes.Buffer
@@ -176,7 +176,7 @@ func createFile(t *testing.T, path string) {
 
 func TestLoadConfigAutoCreation(t *testing.T) {
 	tmpDir := t.TempDir()
-	testConfigPath := filepath.Join(tmpDir, ".ccls", "config.yaml")
+	testConfigPath := filepath.Join(tmpDir, ".cclogs", "config.yaml")
 
 	oldConfigPath := configPath
 	oldDefaultConfigPath := defaultConfigPath
@@ -242,7 +242,7 @@ func TestLoadConfigCustomPathNoAutoCreation(t *testing.T) {
 	tmpDir := t.TempDir()
 	customPath := filepath.Join(tmpDir, "custom-config.yaml")
 
-	defaultConfigPath = filepath.Join(tmpDir, ".ccls", "config.yaml")
+	defaultConfigPath = filepath.Join(tmpDir, ".cclogs", "config.yaml")
 
 	oldConfigPath := configPath
 	configPath = customPath
@@ -281,14 +281,14 @@ func TestPrintWelcomeMessage(t *testing.T) {
 	outputStr := string(output[:n])
 
 	expectedPhrases := []string{
-		"Welcome to ccls!",
+		"Welcome to cclogs!",
 		configPath,
 		"s3.bucket",
 		"s3.region",
 		"auth.profile",
-		"ccls doctor",
-		"ccls list",
-		"ccls upload",
+		"cclogs doctor",
+		"cclogs list",
+		"cclogs upload",
 	}
 
 	for _, phrase := range expectedPhrases {

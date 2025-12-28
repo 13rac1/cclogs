@@ -16,7 +16,7 @@ go.work
 
 # Built binary
 bin/
-/ccls
+/cclogs
 
 # IDE files
 .idea/

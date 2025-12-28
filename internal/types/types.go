@@ -1,8 +1,8 @@
-// Package types defines the core data structures used throughout ccls.
+// Package types defines the core data structures used throughout cclogs.
 // This includes configuration structs, project metadata, and shared types.
 package types
 
-// Config represents the complete configuration for ccls.
+// Config represents the complete configuration for cclogs.
 type Config struct {
 	Local LocalConfig `yaml:"local"`
 	S3    S3Config    `yaml:"s3"`

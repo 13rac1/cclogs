@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/13rac1/ccls/internal/types"
+	"github.com/13rac1/cclogs/internal/types"
 )
 
 // JSONOutput represents the complete JSON output structure.

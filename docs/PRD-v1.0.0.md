@@ -1,13 +1,13 @@
-## PRD: cc-log-shipper (`ccls`)
+## PRD: cc-log-shipper (`cclogs`)
 
 ### Document control
 - Product name: `cc-log-shipper`
-- Executable: `ccls`
+- Executable: `cclogs`
 - Version: v0.1 (MVP)
 - Status: Final (as of 2025-12-27)
 
 ### Summary
-`ccls` is a small Golang CLI that discovers Claude Code session logs on a machine and ships them to an S3-compatible bucket, then can list local and remote “projects” with `.jsonl` counts.
+`cclogs` is a small Golang CLI that discovers Claude Code session logs on a machine and ships them to an S3-compatible bucket, then can list local and remote “projects” with `.jsonl` counts.
 
 ### Background / problem
 Claude Code stores session logs locally as newline-delimited JSON (`*.jsonl`) under a per-project directory structure rooted at `~/.claude/projects/`.  
@@ -16,11 +16,11 @@ These logs are useful for debugging, auditing, and analysis, but can be lost whe
 ### Goals
 - Automatically discover **all local projects by default** and identify all `*.jsonl` logs.
 - Upload those logs to an S3-compatible bucket using the AWS SDK for Go.
-- Provide `ccls list` that reports:
+- Provide `cclogs list` that reports:
   - Local projects + count of local `.jsonl` files per project.
   - Remote projects + count of remote `.jsonl` objects per project.
 - Support running from **multiple machines** against the same bucket/prefix without requiring shared local state.
-- Use a config file at `~/.ccls/config.yaml` by default, overridable via `--config`.
+- Use a config file at `~/.cclogs/config.yaml` by default, overridable via `--config`.
 
 ### Non-goals
 - No log transformation (no parsing/rewriting/format conversion).
@@ -38,8 +38,8 @@ These logs are useful for debugging, auditing, and analysis, but can be lost whe
 - Teams archiving logs centrally in an S3-compatible system.
 
 ### Key user stories
-- As a user, running `ccls upload` uploads all `.jsonl` logs across all local Claude Code projects.
-- As a user, running `ccls list` shows local and remote projects with JSONL counts so I can verify coverage.
+- As a user, running `cclogs upload` uploads all `.jsonl` logs across all local Claude Code projects.
+- As a user, running `cclogs list` shows local and remote projects with JSONL counts so I can verify coverage.
 - As a user of an S3-compatible provider (Backblaze B2, MinIO, etc.), I can set a custom endpoint and path-style behavior in config.
 
 ***
@@ -49,10 +49,10 @@ These logs are useful for debugging, auditing, and analysis, but can be lost whe
 ## CLI surface
 ### Global flags
 - `--config <path>`: Path to YAML config file.
-  - Default: `~/.ccls/config.yaml`
+  - Default: `~/.cclogs/config.yaml`
 
 ### Commands
-#### `ccls list`
+#### `cclogs list`
 Lists local and remote projects with `.jsonl` counts.
 
 **Local listing requirements**
@@ -71,7 +71,7 @@ Lists local and remote projects with `.jsonl` counts.
 - Default output: human-readable table.
 - `--json` optional: machine-readable output, stable schema (see below).
 
-#### `ccls upload`
+#### `cclogs upload`
 Uploads local `.jsonl` logs to remote storage.
 
 **Discovery**
@@ -84,7 +84,7 @@ Uploads local `.jsonl` logs to remote storage.
 - Preserve directory structure to support restores and debugging.
 
 **Multi-machine behavior / idempotency**
-Because `ccls` runs from multiple machines, no local state DB is used.
+Because `cclogs` runs from multiple machines, no local state DB is used.
 - Default behavior: upload is safe to run repeatedly from any machine.
 - Two acceptable MVP modes (choose one; recommended is Mode B):
   - Mode A (simplest): Always PUT (overwrite) the destination key.
@@ -99,7 +99,7 @@ Because `ccls` runs from multiple machines, no local state DB is used.
 **Safety**
 - `--dry-run`: show planned uploads and skips without performing writes.
 
-#### `ccls doctor`
+#### `cclogs doctor`
 Validates configuration and connectivity.
 
 Checks:
@@ -112,7 +112,7 @@ Checks:
 ## Configuration
 
 ### Config file
-- Default path: `~/.ccls/config.yaml`
+- Default path: `~/.cclogs/config.yaml`
 - YAML format.
 - No environment variable support as part of product UX.
 
@@ -163,14 +163,14 @@ To keep the tool simple and consistent across machines:
 
 ## Output specs
 
-### `ccls list` (table output)
+### `cclogs list` (table output)
 Columns (suggested):
 - Project
 - Local JSONL count
 - Remote JSONL count
 - Status (e.g., `OK`, `Local-only`, `Remote-only`, `Mismatch`)
 
-### `ccls list --json` schema
+### `cclogs list --json` schema
 ```json
 {
   "generatedAt": "RFC3339 timestamp",
@@ -196,7 +196,7 @@ Columns (suggested):
 - Logs may contain sensitive content.
 - Never print log contents.
 - Never print secrets (redact keys if present in config).
-- Recommend users set restrictive permissions on `~/.ccls/config.yaml`.
+- Recommend users set restrictive permissions on `~/.cclogs/config.yaml`.
 
 ### Reliability
 - `list` and `upload` must handle:
@@ -216,20 +216,20 @@ Columns (suggested):
 ***
 
 ## Acceptance criteria (v0.1)
-- With logs present locally, `ccls list` shows all local projects and correct `.jsonl` counts.
-- With valid remote config, `ccls list` also shows remote projects and correct remote `.jsonl` counts.
-- `ccls upload` uploads all local `.jsonl` logs to the configured bucket/prefix.
-- Re-running `ccls upload` is safe from multiple machines:
+- With logs present locally, `cclogs list` shows all local projects and correct `.jsonl` counts.
+- With valid remote config, `cclogs list` also shows remote projects and correct remote `.jsonl` counts.
+- `cclogs upload` uploads all local `.jsonl` logs to the configured bucket/prefix.
+- Re-running `cclogs upload` is safe from multiple machines:
   - Either overwrites deterministically (Mode A), or
   - Skips identical objects based on remote checks (Mode B).
 - `--config <path>` loads an alternate config and all commands honor it.
-- `ccls doctor` clearly diagnoses missing config, local discovery issues, and remote connectivity/auth problems.
+- `cclogs doctor` clearly diagnoses missing config, local discovery issues, and remote connectivity/auth problems.
 
 ***
 
 ## Open questions (optional for MVP finalization)
 - Should `upload` default to Mode A (always overwrite) for simplicity, or Mode B (skip if identical) to reduce bandwidth/cost?
   - Mode B
-- Should project naming remain the raw directory name under `~/.claude/projects/`, or should `ccls` optionally maintain a human-friendly mapping file for readability?
+- Should project naming remain the raw directory name under `~/.claude/projects/`, or should `cclogs` optionally maintain a human-friendly mapping file for readability?
   - Leave existing names
 

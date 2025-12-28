@@ -1,4 +1,4 @@
-// Package config handles loading, validation, and management of ccls configuration files.
+// Package config handles loading, validation, and management of cclogs configuration files.
 // It provides functions to read YAML config, apply defaults, validate required fields,
 // and create starter configurations for new users.
 package config
@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/13rac1/ccls/internal/types"
+	"github.com/13rac1/cclogs/internal/types"
 	"gopkg.in/yaml.v3"
 )
 
@@ -18,8 +18,8 @@ const (
 	defaultS3Prefix     = "claude-code/"
 )
 
-const starterConfigTemplate = `# ccls configuration file
-# ccls ships Claude Code session logs to S3-compatible storage
+const starterConfigTemplate = `# cclogs configuration file
+# cclogs ships Claude Code session logs to S3-compatible storage
 
 # Local configuration
 local:

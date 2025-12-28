@@ -1,15 +1,15 @@
 # Configuration Reference
 
-This document provides comprehensive documentation for all **ccls** configuration options.
+This document provides comprehensive documentation for all **cclogs** configuration options.
 
 ## Configuration File Location
 
-Default location: `~/.ccls/config.yaml`
+Default location: `~/.cclogs/config.yaml`
 
 Override with the `--config` flag:
 
 ```bash
-ccls --config /custom/path/config.yaml list
+cclogs --config /custom/path/config.yaml list
 ```
 
 ## Configuration File Format
@@ -159,7 +159,7 @@ aws_secret_access_key = YOUR_B2_APPLICATION_KEY
 - **Security**: Not recommended - use `profile` instead
 - **File permissions**: If using static credentials, set restrictive permissions:
   ```bash
-  chmod 600 ~/.ccls/config.yaml
+  chmod 600 ~/.cclogs/config.yaml
   ```
 
 #### `auth.session_token`
@@ -210,7 +210,7 @@ aws_access_key_id = YOUR_KEY_ID
 aws_secret_access_key = YOUR_APPLICATION_KEY
 ```
 
-**Step 3**: Configure ccls:
+**Step 3**: Configure cclogs:
 
 ```yaml
 s3:
@@ -306,10 +306,10 @@ auth:
 
 ## Configuration Validation
 
-Run `ccls doctor` to validate your configuration:
+Run `cclogs doctor` to validate your configuration:
 
 ```bash
-ccls doctor
+cclogs doctor
 ```
 
 This checks:
@@ -328,7 +328,7 @@ This checks:
 
 2. **Set restrictive file permissions**
    ```bash
-   chmod 600 ~/.ccls/config.yaml
+   chmod 600 ~/.cclogs/config.yaml
    chmod 600 ~/.aws/credentials
    ```
 
@@ -350,7 +350,7 @@ This checks:
 
 ## Minimal IAM Policy
 
-For AWS S3, ccls requires these permissions:
+For AWS S3, cclogs requires these permissions:
 
 ```json
 {
@@ -379,7 +379,7 @@ For Backblaze B2 and other providers, equivalent permissions are needed.
 
 ### "config file not found"
 
-- Default location is `~/.ccls/config.yaml`
+- Default location is `~/.cclogs/config.yaml`
 - Run any command to auto-generate starter config
 - Check tilde expansion: `~` must be at start of path
 
@@ -429,7 +429,7 @@ local:
 
 Each machine can have its own config with different `projects_root`:
 
-**Machine 1** (`/Users/alice/.ccls/config.yaml`):
+**Machine 1** (`/Users/alice/.cclogs/config.yaml`):
 ```yaml
 local:
   projects_root: "/Users/alice/.claude/projects"
@@ -438,7 +438,7 @@ s3:
   # ... same S3 config
 ```
 
-**Machine 2** (`/Users/bob/.ccls/config.yaml`):
+**Machine 2** (`/Users/bob/.cclogs/config.yaml`):
 ```yaml
 local:
   projects_root: "/Users/bob/.claude/projects"
@@ -454,13 +454,13 @@ Both machines can safely upload to the same bucket. Files with identical S3 keys
 Use different config files for different environments:
 
 ```bash
-ccls --config ~/.ccls/config.prod.yaml upload
-ccls --config ~/.ccls/config.test.yaml upload
+cclogs --config ~/.cclogs/config.prod.yaml upload
+cclogs --config ~/.cclogs/config.test.yaml upload
 ```
 
 ## Configuration File Generation
 
-When you run `ccls` for the first time (without an existing config file), it automatically generates a starter configuration at `~/.ccls/config.yaml` with:
+When you run `cclogs` for the first time (without an existing config file), it automatically generates a starter configuration at `~/.cclogs/config.yaml` with:
 
 - Default values for all settings
 - Helpful comments explaining each option

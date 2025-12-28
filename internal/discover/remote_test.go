@@ -91,7 +91,7 @@ func TestStrPtr(t *testing.T) {
 //
 // To test manually:
 // 1. Set up S3 bucket with test data
-// 2. Configure ccls with test credentials
+// 2. Configure cclogs with test credentials
 // 3. Run: go test -v -run TestDiscoverRemote_Integration
 //
 // Example test bucket structure:

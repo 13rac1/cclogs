@@ -1,8 +1,8 @@
-# ccls - Claude Code Log Shipper
+# cclogs - Claude Code Log Shipper
 
-**ccls** is a CLI tool that backs up your Claude Code session logs to S3-compatible storage.
+**cclogs** is a CLI tool that backs up your Claude Code session logs to S3-compatible storage.
 
-Claude Code stores session transcripts as `.jsonl` files under `~/.claude/projects/`. These logs are valuable for debugging, auditing, and analysis, but they can be lost when machines are rebuilt or cleaned up. **ccls** automatically discovers all your local Claude Code projects and safely uploads their logs to S3-compatible storage, making it easy to maintain backups across multiple machines.
+Claude Code stores session transcripts as `.jsonl` files under `~/.claude/projects/`. These logs are valuable for debugging, auditing, and analysis, but they can be lost when machines are rebuilt or cleaned up. **cclogs** automatically discovers all your local Claude Code projects and safely uploads their logs to S3-compatible storage, making it easy to maintain backups across multiple machines.
 
 ## Features
 
@@ -16,7 +16,7 @@ Claude Code stores session transcripts as `.jsonl` files under `~/.claude/projec
 ## Installation
 
 ```bash
-go install github.com/13rac1/ccls/cmd/ccls@latest
+go install github.com/13rac1/cclogs/cmd/cclogs@latest
 ```
 
 Ensure `$GOPATH/bin` (or `$HOME/go/bin`) is in your `PATH`.
@@ -25,13 +25,13 @@ Ensure `$GOPATH/bin` (or `$HOME/go/bin`) is in your `PATH`.
 
 ### 1. Initial Setup
 
-Run `ccls` for the first time to generate a starter configuration:
+Run `cclogs` for the first time to generate a starter configuration:
 
 ```bash
-ccls list
+cclogs list
 ```
 
-This creates `~/.ccls/config.yaml` with template settings. Edit this file to configure your S3 bucket:
+This creates `~/.cclogs/config.yaml` with template settings. Edit this file to configure your S3 bucket:
 
 ```yaml
 s3:
@@ -54,7 +54,7 @@ auth:
 Check that everything is configured correctly:
 
 ```bash
-ccls doctor
+cclogs doctor
 ```
 
 This validates:
@@ -68,13 +68,13 @@ This validates:
 Upload all local `.jsonl` logs to your S3 bucket:
 
 ```bash
-ccls upload
+cclogs upload
 ```
 
 Use `--dry-run` to preview what would be uploaded:
 
 ```bash
-ccls upload --dry-run
+cclogs upload --dry-run
 ```
 
 ### 4. Verify Uploads
@@ -82,7 +82,7 @@ ccls upload --dry-run
 List all local and remote projects with JSONL counts:
 
 ```bash
-ccls list
+cclogs list
 ```
 
 Example output:
@@ -100,12 +100,12 @@ Projects
 
 ## Commands
 
-### `ccls doctor`
+### `cclogs doctor`
 
 Validates configuration and connectivity.
 
 ```bash
-ccls doctor
+cclogs doctor
 ```
 
 Checks:
@@ -114,24 +114,24 @@ Checks:
 - Local projects directory exists and is readable
 - S3 bucket is accessible with current credentials
 
-### `ccls list`
+### `cclogs list`
 
 Lists local and remote projects with JSONL file counts.
 
 ```bash
-ccls list              # Table output
-ccls list --json       # Machine-readable JSON output
+cclogs list              # Table output
+cclogs list --json       # Machine-readable JSON output
 ```
 
 Helps you verify that all projects are backed up and identify any mismatches.
 
-### `ccls upload`
+### `cclogs upload`
 
 Uploads all local `.jsonl` logs to remote storage.
 
 ```bash
-ccls upload            # Upload new/changed files
-ccls upload --dry-run  # Preview planned uploads
+cclogs upload            # Upload new/changed files
+cclogs upload --dry-run  # Preview planned uploads
 ```
 
 Safe to run repeatedly:
@@ -141,10 +141,10 @@ Safe to run repeatedly:
 
 ## Configuration
 
-The default config location is `~/.ccls/config.yaml`. Override with:
+The default config location is `~/.cclogs/config.yaml`. Override with:
 
 ```bash
-ccls --config /path/to/config.yaml list
+cclogs --config /path/to/config.yaml list
 ```
 
 See [docs/CONFIGURATION.md](docs/CONFIGURATION.md) for detailed configuration reference and examples for different S3 providers.
@@ -159,7 +159,7 @@ See [docs/EXAMPLES.md](docs/EXAMPLES.md) for:
 
 ## S3-Compatible Providers
 
-**ccls** works with any S3-compatible storage provider. Configuration examples:
+**cclogs** works with any S3-compatible storage provider. Configuration examples:
 
 ### AWS S3
 
@@ -201,7 +201,7 @@ auth:
 - Session logs may contain sensitive information
 - Use AWS profiles (recommended) or set restrictive permissions on `config.yaml`:
   ```bash
-  chmod 600 ~/.ccls/config.yaml
+  chmod 600 ~/.cclogs/config.yaml
   ```
 - Never commit credentials to version control
 - Consider using bucket encryption and lifecycle policies
@@ -222,7 +222,7 @@ This design ensures:
 
 ## Contributing
 
-Issues and pull requests welcome at [github.com/13rac1/ccls](https://github.com/13rac1/ccls).
+Issues and pull requests welcome at [github.com/13rac1/cclogs](https://github.com/13rac1/cclogs).
 
 ## License
 

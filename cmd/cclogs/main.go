@@ -7,12 +7,12 @@ import (
 	"path/filepath"
 	"sort"
 
-	"github.com/13rac1/ccls/internal/config"
-	"github.com/13rac1/ccls/internal/discover"
-	"github.com/13rac1/ccls/internal/doctor"
-	"github.com/13rac1/ccls/internal/output"
-	"github.com/13rac1/ccls/internal/types"
-	"github.com/13rac1/ccls/internal/uploader"
+	"github.com/13rac1/cclogs/internal/config"
+	"github.com/13rac1/cclogs/internal/discover"
+	"github.com/13rac1/cclogs/internal/doctor"
+	"github.com/13rac1/cclogs/internal/output"
+	"github.com/13rac1/cclogs/internal/types"
+	"github.com/13rac1/cclogs/internal/uploader"
 	"github.com/spf13/cobra"
 )
 
@@ -29,9 +29,9 @@ func main() {
 }
 
 var rootCmd = &cobra.Command{
-	Use:   "ccls",
+	Use:   "cclogs",
 	Short: "Claude Code Log Shipper - upload session logs to S3",
-	Long: `ccls discovers Claude Code session logs (*.jsonl files) from ~/.claude/projects/
+	Long: `cclogs discovers Claude Code session logs (*.jsonl files) from ~/.claude/projects/
 and uploads them to S3-compatible storage for backup and archival.`,
 }
 
@@ -152,7 +152,7 @@ func init() {
 		fmt.Fprintf(os.Stderr, "Warning: failed to get home directory: %v\n", err)
 		homeDir = "~"
 	}
-	defaultConfigPath = filepath.Join(homeDir, ".ccls", "config.yaml")
+	defaultConfigPath = filepath.Join(homeDir, ".cclogs", "config.yaml")
 
 	rootCmd.PersistentFlags().StringVar(&configPath, "config", defaultConfigPath, "path to config file")
 
@@ -186,7 +186,7 @@ func loadConfig() (*types.Config, error) {
 }
 
 func printWelcomeMessage(configPath string) {
-	fmt.Println("Welcome to ccls!")
+	fmt.Println("Welcome to cclogs!")
 	fmt.Println()
 	fmt.Printf("A starter configuration file has been created at:\n")
 	fmt.Printf("  %s\n", configPath)
@@ -201,9 +201,9 @@ func printWelcomeMessage(configPath string) {
 	fmt.Println("  - Set s3.force_path_style: true if required")
 	fmt.Println()
 	fmt.Println("After configuration, run:")
-	fmt.Println("  ccls doctor   # Validate configuration")
-	fmt.Println("  ccls list     # List local and remote projects")
-	fmt.Println("  ccls upload   # Upload local JSONL files")
+	fmt.Println("  cclogs doctor   # Validate configuration")
+	fmt.Println("  cclogs list     # List local and remote projects")
+	fmt.Println("  cclogs upload   # Upload local JSONL files")
 }
 
 // mergeProjects combines local and remote projects into a single list.

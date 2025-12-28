@@ -11,7 +11,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/13rac1/ccls/internal/types"
+	"github.com/13rac1/cclogs/internal/types"
 )
 
 // DiscoverLocal discovers all local Claude Code projects and counts their .jsonl files.
