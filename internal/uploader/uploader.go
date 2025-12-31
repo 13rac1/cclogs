@@ -37,14 +37,16 @@ type Uploader struct {
 	cfg      *types.Config
 	client   *s3.Client
 	noRedact bool
+	debug    bool
 }
 
 // New creates a new Uploader with the given configuration and S3 client.
-func New(cfg *types.Config, client *s3.Client, noRedact bool) *Uploader {
+func New(cfg *types.Config, client *s3.Client, noRedact, debug bool) *Uploader {
 	return &Uploader{
 		cfg:      cfg,
 		client:   client,
 		noRedact: noRedact,
+		debug:    debug,
 	}
 }
 
@@ -221,10 +223,10 @@ func ComputeS3Key(prefix, projectDir, relPath string) string {
 
 // UploadResult contains summary statistics from an upload operation.
 type UploadResult struct {
-	Uploaded       int              // Number of files uploaded
-	Skipped        int              // Number of files skipped
-	UploadedBytes  int64            // Total bytes uploaded
-	RedactionStats *redactor.Stats  // Aggregated redaction statistics
+	Uploaded       int             // Number of files uploaded
+	Skipped        int             // Number of files skipped
+	UploadedBytes  int64           // Total bytes uploaded
+	RedactionStats *redactor.Stats // Aggregated redaction statistics
 }
 
 // Upload uploads the provided files to S3, respecting the ShouldSkip field.
@@ -374,7 +376,11 @@ func (u *Uploader) uploadFile(ctx context.Context, uploader *manager.Uploader, f
 	var body io.Reader = f
 	var statsCh <-chan *redactor.Stats
 	if !u.noRedact {
-		body, statsCh = redactor.StreamRedactWithStats(f)
+		var debugW io.Writer
+		if u.debug {
+			debugW = os.Stderr
+		}
+		body, statsCh = redactor.StreamRedactWithStatsDebug(f, debugW)
 	}
 
 	// Upload to S3
@@ -414,4 +420,114 @@ func formatSize(bytes int64) string {
 	default:
 		return fmt.Sprintf("%d B", bytes)
 	}
+}
+
+// DryRunProcess processes files through redaction but does not upload them.
+// This allows users to verify redaction behavior before actually uploading.
+// Returns aggregated stats from processing all files.
+func (u *Uploader) DryRunProcess(ctx context.Context, files []FileUpload) (*UploadResult, error) {
+	result := &UploadResult{
+		RedactionStats: redactor.NewStats(),
+	}
+
+	if len(files) == 0 {
+		return result, nil
+	}
+
+	totalFiles := len(files)
+
+	for i, file := range files {
+		fileNum := i + 1
+
+		// Check context cancellation
+		if err := ctx.Err(); err != nil {
+			return result, fmt.Errorf("processing cancelled: %w", err)
+		}
+
+		if file.ShouldSkip {
+			fmt.Printf("[%d/%d] Would skip %s (%s)\n", fileNum, totalFiles, file.LocalPath, file.SkipReason)
+			result.Skipped++
+			continue
+		}
+
+		fmt.Printf("[%d/%d] Processing %s (%s)", fileNum, totalFiles, file.LocalPath, formatSize(file.Size))
+
+		// Process file through redaction
+		fileStats, err := u.processFileForStats(ctx, file)
+		if err != nil {
+			fmt.Println() // Complete the line
+			return result, fmt.Errorf("processing %s: %w", file.LocalPath, err)
+		}
+
+		// Display per-file redaction stats
+		if fileStats != nil && fileStats.TotalMatches > 0 {
+			fmt.Printf(" → %s (%.1f%% redacted, %d matches)\n",
+				formatSize(fileStats.RedactedBytes),
+				fileStats.PercentReduction(),
+				fileStats.TotalMatches)
+			result.RedactionStats.Add(fileStats)
+		} else {
+			fmt.Println(" → no redactions")
+		}
+
+		result.Uploaded++ // Count as "would upload"
+		result.UploadedBytes += file.Size
+	}
+
+	// Print summary
+	fmt.Printf("\nDry-run complete: %d would upload (%s), %d would skip\n",
+		result.Uploaded, formatSize(result.UploadedBytes), result.Skipped)
+
+	// Print redaction summary if any matches were found
+	if result.RedactionStats != nil && result.RedactionStats.TotalMatches > 0 {
+		fmt.Printf("\nRedaction summary:\n")
+		fmt.Printf("  Total: %s → %s (%.1f%% reduction)\n",
+			formatSize(result.RedactionStats.OriginalBytes),
+			formatSize(result.RedactionStats.RedactedBytes),
+			result.RedactionStats.PercentReduction())
+		fmt.Printf("  Matches: %d total\n", result.RedactionStats.TotalMatches)
+
+		// Print per-pattern breakdown
+		for _, pc := range result.RedactionStats.PatternSummary() {
+			fmt.Printf("    %s: %d\n", pc.Pattern, pc.Count)
+		}
+	}
+
+	return result, nil
+}
+
+// processFileForStats reads a file and runs it through redaction to collect stats.
+// The redacted output is discarded; only stats are collected.
+func (u *Uploader) processFileForStats(ctx context.Context, file FileUpload) (*redactor.Stats, error) {
+	f, err := os.Open(file.LocalPath)
+	if err != nil {
+		return nil, fmt.Errorf("opening file: %w", err)
+	}
+	defer func() {
+		if closeErr := f.Close(); closeErr != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to close file %s: %v\n", file.LocalPath, closeErr)
+		}
+	}()
+
+	if u.noRedact {
+		return nil, nil
+	}
+
+	// Use debug writer if enabled
+	var debugW io.Writer
+	if u.debug {
+		debugW = os.Stderr
+	}
+
+	// Process through redactor, discard output but collect stats
+	reader, statsCh := redactor.StreamRedactWithStatsDebug(f, debugW)
+
+	// Discard redacted output
+	if _, err := io.Copy(io.Discard, reader); err != nil {
+		return nil, fmt.Errorf("processing file: %w", err)
+	}
+
+	// Wait for stats
+	stats := <-statsCh
+	return stats, nil
 }

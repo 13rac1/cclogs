@@ -2,12 +2,12 @@
 // It replaces sensitive data with deterministic placeholders like <EMAIL-9f86d081>.
 //
 // SECURITY NOTES:
-// 1. This redactor provides defense-in-depth, but is NOT a substitute for
-//    proper secret management (use vaults, not logs)
-// 2. Patterns may have false negatives (missed secrets) and false positives
-// 3. Determined attackers can bypass using encoding, obfuscation, or novel formats
-// 4. Regularly audit patterns against services like GitHub Secret Scanning
-// 5. Redacted logs are NOT safe to share publicly—metadata leakage is still possible
+//  1. This redactor provides defense-in-depth, but is NOT a substitute for
+//     proper secret management (use vaults, not logs)
+//  2. Patterns may have false negatives (missed secrets) and false positives
+//  3. Determined attackers can bypass using encoding, obfuscation, or novel formats
+//  4. Regularly audit patterns against services like GitHub Secret Scanning
+//  5. Redacted logs are NOT safe to share publicly—metadata leakage is still possible
 package redactor
 
 import (
@@ -54,7 +54,7 @@ var patterns = []pattern{
 	{"DIGITALOCEAN", regexp.MustCompile(`(?i)\bdop_v1_[a-f0-9]{64}\b`)},
 	{"DOCKER_PAT", regexp.MustCompile(`(?i)\bdckr_pat_[A-Za-z0-9_-]{32,}\b`)},
 	{"CLOUDFLARE", regexp.MustCompile(`(?i)\bv1\.0-[a-f0-9]{8}-[a-f0-9]{113}\b`)},
-	{"HEROKU", regexp.MustCompile(`(?i)\b[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}\b`)},
+	// HEROKU pattern removed: matched ALL UUIDs causing massive false positives
 
 	// AWS patterns (case-insensitive)
 	{"AWS_KEY", regexp.MustCompile(`(?i)\bAKIA[0-9A-Z]{16}\b`)},
@@ -256,56 +256,66 @@ func streamRedact(r io.Reader, w io.Writer) error {
 }
 
 // redactWithStats applies all redaction patterns to a string, counting matches.
-func redactWithStats(s string, stats *Stats) string {
+func redactWithStats(s string, stats *Stats, debugW io.Writer) string {
 	// Normalize Unicode to canonical form to prevent homoglyph bypasses
 	s = norm.NFC.String(s)
 
 	// Pre-process for encoded secrets (but avoid infinite recursion)
 	if !strings.Contains(s, "<BASE64_SECRET-") {
-		s = preDecodeAndRedactWithStats(s, stats)
+		s = preDecodeAndRedactWithStats(s, stats, debugW)
 	}
 
 	for _, p := range patterns {
-		matches := p.re.FindAllString(s, -1)
-		if len(matches) > 0 {
-			stats.TotalMatches += int64(len(matches))
-			stats.ByPattern[p.tag] += int64(len(matches))
-		}
+		tag := p.tag // capture for closure
 		s = p.re.ReplaceAllStringFunc(s, func(m string) string {
-			return placeholder(p.tag, m)
+			stats.TotalMatches++
+			stats.ByPattern[tag]++
+			redacted := placeholder(tag, m)
+			if debugW != nil {
+				fmt.Fprintf(debugW, "[DEBUG] %s: %q → %q\n", tag, m, redacted)
+			}
+			return redacted
 		})
 	}
 	return s
 }
 
 // preDecodeAndRedactWithStats is like preDecodeAndRedact but tracks stats.
-func preDecodeAndRedactWithStats(s string, stats *Stats) string {
+func preDecodeAndRedactWithStats(s string, stats *Stats, debugW io.Writer) string {
 	base64Pattern := regexp.MustCompile(`[A-Za-z0-9+/]{40,}={0,2}`)
 
 	s = base64Pattern.ReplaceAllStringFunc(s, func(m string) string {
 		if decoded, err := base64.StdEncoding.DecodeString(m); err == nil {
 			decodedStr := string(decoded)
-			redacted := redactWithStats(decodedStr, stats)
+			redacted := redactWithStats(decodedStr, stats, debugW)
 			if redacted != decodedStr {
 				stats.TotalMatches++
 				stats.ByPattern["BASE64_SECRET"]++
-				return placeholder("BASE64_SECRET", m)
+				p := placeholder("BASE64_SECRET", m)
+				if debugW != nil {
+					fmt.Fprintf(debugW, "[DEBUG] BASE64_SECRET: %q → %q\n", m, p)
+				}
+				return p
 			}
 		}
 		if decoded, err := base64.URLEncoding.DecodeString(m); err == nil {
 			decodedStr := string(decoded)
-			redacted := redactWithStats(decodedStr, stats)
+			redacted := redactWithStats(decodedStr, stats, debugW)
 			if redacted != decodedStr {
 				stats.TotalMatches++
 				stats.ByPattern["BASE64_SECRET"]++
-				return placeholder("BASE64_SECRET", m)
+				p := placeholder("BASE64_SECRET", m)
+				if debugW != nil {
+					fmt.Fprintf(debugW, "[DEBUG] BASE64_SECRET: %q → %q\n", m, p)
+				}
+				return p
 			}
 		}
 		return m
 	})
 
 	if urlDecoded, err := url.QueryUnescape(s); err == nil && urlDecoded != s {
-		redactedDecoded := redactWithStats(urlDecoded, stats)
+		redactedDecoded := redactWithStats(urlDecoded, stats, debugW)
 		if redactedDecoded != urlDecoded {
 			s = redactedDecoded
 		}
@@ -315,18 +325,18 @@ func preDecodeAndRedactWithStats(s string, stats *Stats) string {
 }
 
 // RedactJSONWithStats recursively redacts all string values in parsed JSON, tracking stats.
-func RedactJSONWithStats(v any, stats *Stats) any {
+func RedactJSONWithStats(v any, stats *Stats, debugW io.Writer) any {
 	switch val := v.(type) {
 	case string:
-		return redactWithStats(val, stats)
+		return redactWithStats(val, stats, debugW)
 	case map[string]any:
 		for k, v := range val {
-			val[k] = RedactJSONWithStats(v, stats)
+			val[k] = RedactJSONWithStats(v, stats, debugW)
 		}
 		return val
 	case []any:
 		for i, v := range val {
-			val[i] = RedactJSONWithStats(v, stats)
+			val[i] = RedactJSONWithStats(v, stats, debugW)
 		}
 		return val
 	default:
@@ -335,7 +345,7 @@ func RedactJSONWithStats(v any, stats *Stats) any {
 }
 
 // redactLineWithStats processes a single JSONL line, tracking stats.
-func redactLineWithStats(line []byte, stats *Stats) ([]byte, error) {
+func redactLineWithStats(line []byte, stats *Stats, debugW io.Writer) ([]byte, error) {
 	if len(line) == 0 {
 		return line, nil
 	}
@@ -343,10 +353,10 @@ func redactLineWithStats(line []byte, stats *Stats) ([]byte, error) {
 	var data any
 	if err := json.Unmarshal(line, &data); err != nil {
 		// Not valid JSON - redact as raw string
-		return []byte(redactWithStats(string(line), stats)), nil
+		return []byte(redactWithStats(string(line), stats, debugW)), nil
 	}
 
-	redacted := RedactJSONWithStats(data, stats)
+	redacted := RedactJSONWithStats(data, stats, debugW)
 
 	var buf bytes.Buffer
 	enc := json.NewEncoder(&buf)
@@ -364,12 +374,18 @@ func redactLineWithStats(line []byte, stats *Stats) ([]byte, error) {
 // StreamRedactWithStats returns an io.Reader that redacts content and a channel
 // that receives Stats when processing is complete.
 func StreamRedactWithStats(r io.Reader) (io.Reader, <-chan *Stats) {
+	return StreamRedactWithStatsDebug(r, nil)
+}
+
+// StreamRedactWithStatsDebug is like StreamRedactWithStats but with optional debug logging.
+// When debugW is non-nil, each redaction match is logged with before/after values.
+func StreamRedactWithStatsDebug(r io.Reader, debugW io.Writer) (io.Reader, <-chan *Stats) {
 	pr, pw := io.Pipe()
 	statsCh := make(chan *Stats, 1)
 
 	go func() {
 		stats := NewStats()
-		err := streamRedactWithStats(r, pw, stats)
+		err := streamRedactWithStats(r, pw, stats, debugW)
 		statsCh <- stats
 		close(statsCh)
 		pw.CloseWithError(err)
@@ -379,7 +395,7 @@ func StreamRedactWithStats(r io.Reader) (io.Reader, <-chan *Stats) {
 }
 
 // streamRedactWithStats performs redaction while tracking statistics.
-func streamRedactWithStats(r io.Reader, w io.Writer, stats *Stats) error {
+func streamRedactWithStats(r io.Reader, w io.Writer, stats *Stats, debugW io.Writer) error {
 	scanner := bufio.NewScanner(r)
 	scanner.Buffer(make([]byte, 64*1024), 10*1024*1024)
 
@@ -388,7 +404,7 @@ func streamRedactWithStats(r io.Reader, w io.Writer, stats *Stats) error {
 		stats.LinesProcessed++
 		stats.OriginalBytes += int64(len(line)) + 1 // +1 for newline
 
-		redacted, err := redactLineWithStats(line, stats)
+		redacted, err := redactLineWithStats(line, stats, debugW)
 		if err != nil {
 			return fmt.Errorf("redacting line: %w", err)
 		}

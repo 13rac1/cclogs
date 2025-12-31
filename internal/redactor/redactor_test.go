@@ -541,7 +541,7 @@ func TestRedactNewCloudProviders(t *testing.T) {
 		{"MongoDB URL", "mongodb://admin:MyS3cr3t@cluster0.mongodb.net/mydb", []string{"MONGO_URL"}},
 		{"MongoDB SRV URL", "mongodb+srv://user:pass123@cluster.mongodb.net", []string{"MONGO_URL", "URL_CREDS"}},
 		{"Redis URL", "redis://default:password123@redis.example.com:6379", []string{"REDIS_URL"}},
-		{"Heroku API key", "12345678-1234-1234-1234-123456789abc", []string{"HEROKU"}},
+		// HEROKU test removed: pattern was matching all UUIDs (false positives)
 	}
 
 	for _, tt := range tests {
@@ -590,13 +590,13 @@ func TestRedactInternationalPhone(t *testing.T) {
 		input       string
 		shouldMatch bool
 	}{
-		{"+44 20 1234 5678", true},     // UK
-		{"+49 30 12345678", true},      // Germany
-		{"+86-10-1234-5678", true},     // China
-		{"+1-555-123-4567", true},      // US (also matches US pattern)
-		{"+33 1 23 45 67 89", true},    // France
-		{"Not a phone: +1", false},     // Too short
-		{"Version +2.3.4", false},      // Not a phone
+		{"+44 20 1234 5678", true},  // UK
+		{"+49 30 12345678", true},   // Germany
+		{"+86-10-1234-5678", true},  // China
+		{"+1-555-123-4567", true},   // US (also matches US pattern)
+		{"+33 1 23 45 67 89", true}, // France
+		{"Not a phone: +1", false},  // Too short
+		{"Version +2.3.4", false},   // Not a phone
 	}
 
 	for _, tt := range tests {
@@ -785,8 +785,8 @@ func TestRedactEthereumKeys(t *testing.T) {
 
 func TestRedactURLCredentialsComprehensive(t *testing.T) {
 	tests := []struct {
-		name        string
-		input       string
+		name         string
+		input        string
 		shouldRedact bool
 	}{
 		{"Postgres URL", "postgres://user:password@localhost/db", true},

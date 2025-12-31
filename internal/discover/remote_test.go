@@ -109,11 +109,11 @@ func TestDiscoverFromManifest(t *testing.T) {
 	mtime := time.Date(2025, 1, 1, 12, 0, 0, 0, time.UTC)
 
 	tests := []struct {
-		name    string
-		files   map[string]manifest.FileEntry
-		prefix  string
-		want    []string // project names in sorted order
-		counts  map[string]int
+		name   string
+		files  map[string]manifest.FileEntry
+		prefix string
+		want   []string // project names in sorted order
+		counts map[string]int
 	}{
 		{
 			name:   "empty manifest",

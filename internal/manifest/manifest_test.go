@@ -324,9 +324,9 @@ func TestCountByProject(t *testing.T) {
 		{
 			name: "single project",
 			files: map[string]FileEntry{
-				"claude-code/project-a/session.jsonl":        {},
-				"claude-code/project-a/logs/2025-01.jsonl":   {},
-				"claude-code/project-a/logs/2025-02.jsonl":   {},
+				"claude-code/project-a/session.jsonl":      {},
+				"claude-code/project-a/logs/2025-01.jsonl": {},
+				"claude-code/project-a/logs/2025-02.jsonl": {},
 			},
 			prefix: "claude-code/",
 			want:   map[string]int{"project-a": 3},

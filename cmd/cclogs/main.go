@@ -15,6 +15,7 @@ import (
 	"github.com/13rac1/cclogs/internal/output"
 	"github.com/13rac1/cclogs/internal/types"
 	"github.com/13rac1/cclogs/internal/uploader"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/spf13/cobra"
 )
 
@@ -48,6 +49,7 @@ var (
 	jsonOutput bool
 	dryRun     bool
 	noRedact   bool
+	debug      bool
 )
 
 var listCmd = &cobra.Command{
@@ -108,14 +110,17 @@ to S3-compatible storage. Safe to run repeatedly from multiple machines.`,
 
 		ctx := cmd.Context()
 
-		// Create S3 client
-		client, err := config.NewS3Client(ctx, cfg)
-		if err != nil {
-			return fmt.Errorf("creating S3 client: %w", err)
+		// Create S3 client (nil for dry-run)
+		var client *s3.Client
+		if !dryRun {
+			client, err = config.NewS3Client(ctx, cfg)
+			if err != nil {
+				return fmt.Errorf("creating S3 client: %w", err)
+			}
 		}
 
 		// Create uploader
-		u := uploader.New(cfg, client, noRedact)
+		u := uploader.New(cfg, client, noRedact, debug)
 
 		// Discover files
 		files, err := u.DiscoverFiles(ctx)
@@ -123,9 +128,12 @@ to S3-compatible storage. Safe to run repeatedly from multiple machines.`,
 			return fmt.Errorf("discovering files: %w", err)
 		}
 
-		// In dry-run mode, just print what would be uploaded
+		// In dry-run mode, process files with redaction but don't upload
 		if dryRun {
-			printDryRun(files)
+			_, err = u.DryRunProcess(ctx, files)
+			if err != nil {
+				return fmt.Errorf("processing files: %w", err)
+			}
 			return nil
 		}
 
@@ -169,8 +177,9 @@ func init() {
 	rootCmd.PersistentFlags().StringVar(&configPath, "config", defaultConfigPath, "path to config file")
 
 	listCmd.Flags().BoolVar(&jsonOutput, "json", false, "output in JSON format")
-	uploadCmd.Flags().BoolVar(&dryRun, "dry-run", false, "show planned uploads without performing them")
+	uploadCmd.Flags().BoolVar(&dryRun, "dry-run", false, "process files with redaction but don't upload (shows stats)")
 	uploadCmd.Flags().BoolVar(&noRedact, "no-redact", false, "disable PII/secrets redaction (not recommended)")
+	uploadCmd.Flags().BoolVar(&debug, "debug", false, "show before/after for each redaction match")
 
 	rootCmd.AddCommand(listCmd)
 	rootCmd.AddCommand(uploadCmd)
@@ -260,81 +269,6 @@ func mergeProjects(local, remote []types.Project) []types.Project {
 	})
 
 	return merged
-}
-
-// printDryRun displays planned uploads in a human-readable format.
-func printDryRun(files []uploader.FileUpload) {
-	if len(files) == 0 {
-		fmt.Println("No files to upload")
-		return
-	}
-
-	fmt.Println("Planned uploads (dry-run mode):")
-	fmt.Println()
-
-	// Group files by project
-	projectFiles := make(map[string][]uploader.FileUpload)
-	for _, f := range files {
-		projectFiles[f.ProjectDir] = append(projectFiles[f.ProjectDir], f)
-	}
-
-	// Sort project names for deterministic output
-	var projectNames []string
-	for name := range projectFiles {
-		projectNames = append(projectNames, name)
-	}
-	sort.Strings(projectNames)
-
-	// Print files grouped by project
-	var toUpload int
-	var toSkip int
-	var uploadSize int64
-
-	for _, projectName := range projectNames {
-		fmt.Printf("Project: %s\n", projectName)
-		files := projectFiles[projectName]
-
-		// Sort files within project by local path
-		sort.Slice(files, func(i, j int) bool {
-			return files[i].LocalPath < files[j].LocalPath
-		})
-
-		for _, f := range files {
-			if f.ShouldSkip {
-				fmt.Printf("  [SKIP] %s (reason: %s)\n", f.S3Key, f.SkipReason)
-				toSkip++
-			} else {
-				fmt.Printf("  [UPLOAD] %s (%s)\n", f.S3Key, formatSize(f.Size))
-				toUpload++
-				uploadSize += f.Size
-			}
-		}
-		fmt.Println()
-	}
-
-	fmt.Printf("Summary: %d to upload (%s), %d to skip\n", toUpload, formatSize(uploadSize), toSkip)
-}
-
-// formatSize formats a byte count as a human-readable string.
-// This duplicates the function in uploader package to avoid exporting
-// internal implementation details.
-func formatSize(bytes int64) string {
-	const (
-		KB = 1024
-		MB = KB * 1024
-		GB = MB * 1024
-	)
-
-	switch {
-	case bytes >= GB:
-		return fmt.Sprintf("%.1f GB", float64(bytes)/GB)
-	case bytes >= MB:
-		return fmt.Sprintf("%.1f MB", float64(bytes)/MB)
-	case bytes >= KB:
-		return fmt.Sprintf("%.1f KB", float64(bytes)/KB)
-	default:
-		return fmt.Sprintf("%d B", bytes)
-	}
 }
 
 // computeManifestKey returns the S3 key for the manifest file.

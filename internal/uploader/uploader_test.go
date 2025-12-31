@@ -118,7 +118,7 @@ func TestDiscoverFiles(t *testing.T) {
 		S3:    types.S3Config{Prefix: "claude-code/"},
 	}
 
-	uploader := New(cfg, nil, true)
+	uploader := New(cfg, nil, true, false)
 	files, err := uploader.DiscoverFiles(context.Background())
 	if err != nil {
 		t.Fatalf("DiscoverFiles failed: %v", err)
@@ -200,7 +200,7 @@ func TestDiscoverFilesMultipleProjects(t *testing.T) {
 		S3:    types.S3Config{Prefix: "logs"},
 	}
 
-	uploader := New(cfg, nil, true)
+	uploader := New(cfg, nil, true, false)
 	files, err := uploader.DiscoverFiles(context.Background())
 	if err != nil {
 		t.Fatalf("DiscoverFiles failed: %v", err)
@@ -239,7 +239,7 @@ func TestDiscoverFilesEmptyDirectory(t *testing.T) {
 		S3:    types.S3Config{Prefix: "claude-code/"},
 	}
 
-	uploader := New(cfg, nil, true)
+	uploader := New(cfg, nil, true, false)
 	files, err := uploader.DiscoverFiles(context.Background())
 	if err != nil {
 		t.Fatalf("DiscoverFiles failed: %v", err)
@@ -256,7 +256,7 @@ func TestDiscoverFilesNonexistentRoot(t *testing.T) {
 		S3:    types.S3Config{Prefix: "claude-code/"},
 	}
 
-	uploader := New(cfg, nil, true)
+	uploader := New(cfg, nil, true, false)
 	_, err := uploader.DiscoverFiles(context.Background())
 	if err == nil {
 		t.Fatal("expected error for nonexistent projects root, got nil")
@@ -290,7 +290,7 @@ func TestDiscoverFilesCaseInsensitiveExtension(t *testing.T) {
 		S3:    types.S3Config{Prefix: ""},
 	}
 
-	uploader := New(cfg, nil, true)
+	uploader := New(cfg, nil, true, false)
 	discovered, err := uploader.DiscoverFiles(context.Background())
 	if err != nil {
 		t.Fatalf("DiscoverFiles failed: %v", err)
@@ -329,7 +329,7 @@ func TestUpload_SkipLogic(t *testing.T) {
 	cfg := &types.Config{
 		S3: types.S3Config{Bucket: "test-bucket"},
 	}
-	uploader := New(cfg, nil, true)
+	uploader := New(cfg, nil, true, false)
 
 	// All files are marked to skip, so no actual upload should be attempted
 	result, err := uploader.Upload(context.Background(), files)
@@ -352,7 +352,7 @@ func TestUpload_Empty(t *testing.T) {
 	cfg := &types.Config{
 		S3: types.S3Config{Bucket: "test-bucket"},
 	}
-	uploader := New(cfg, nil, true)
+	uploader := New(cfg, nil, true, false)
 
 	result, err := uploader.Upload(context.Background(), []FileUpload{})
 	if err != nil {
@@ -371,7 +371,7 @@ func TestUpload_ContextCancelled(t *testing.T) {
 	cfg := &types.Config{
 		S3: types.S3Config{Bucket: "test-bucket"},
 	}
-	uploader := New(cfg, nil, true)
+	uploader := New(cfg, nil, true, false)
 
 	files := []FileUpload{
 		{
