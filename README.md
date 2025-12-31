@@ -9,6 +9,7 @@ Claude Code stores session transcripts as `.jsonl` files under `~/.claude/projec
 ## Features
 
 - **Automatic discovery**: Finds all Claude Code projects and `.jsonl` logs by default
+- **Automatic redaction**: Redacts PII and secrets before upload (enabled by default)
 - **Multi-machine safe**: Uploads are idempotent - safely run from multiple machines against the same bucket
 - **S3-compatible**: Works with AWS S3, Backblaze B2, MinIO, and other S3-compatible providers
 - **Smart uploads**: Skips files that already exist remotely with the same size (saves bandwidth)
@@ -141,11 +142,13 @@ Helps you verify that all projects are backed up and identify any mismatches.
 Uploads all local `.jsonl` logs to remote storage.
 
 ```bash
-cclogs upload            # Upload new/changed files
-cclogs upload --dry-run  # Preview planned uploads
+cclogs upload              # Upload new/changed files (with redaction)
+cclogs upload --dry-run    # Preview planned uploads
+cclogs upload --no-redact  # Upload without redaction (not recommended)
 ```
 
 Safe to run repeatedly:
+- Automatically redacts PII and secrets before upload
 - Skips files that already exist remotely with identical size
 - Preserves directory structure for easy restoration
 - Works correctly when run from multiple machines
@@ -216,6 +219,40 @@ auth:
   ```
 - Never commit credentials to version control
 - Consider using bucket encryption and lifecycle policies
+
+## Redaction
+
+By default, **cclogs** automatically redacts sensitive data before uploading. Redacted values are replaced with deterministic placeholders like `<EMAIL-9f86d081>` that preserve structure while protecting privacy.
+
+### Redacted Patterns
+
+| Category | Types |
+|----------|-------|
+| **PII** | Emails, phone numbers, SSNs, credit cards, IP addresses |
+| **Cloud** | AWS access keys, AWS secret keys |
+| **Service Tokens** | GitHub PATs, GitLab tokens, Anthropic keys, OpenAI keys, Stripe keys, Slack tokens, npm tokens |
+| **Crypto** | Ethereum private keys, PEM private key blocks |
+| **Auth** | JWTs, Bearer tokens, Basic auth, URL credentials |
+| **Secrets** | Environment variable secrets, hex secrets |
+
+### Placeholder Format
+
+Format: `<TYPE-XXXXXXXX>` where `XXXXXXXX` is the first 4 bytes of the SHA-256 hash.
+
+- Same values always produce the same placeholder (deterministic)
+- Different values produce different placeholders (correlatable for debugging)
+
+Example:
+- `user@example.com` becomes `<EMAIL-9f86d081>`
+- `AKIAIOSFODNN7EXAMPLE` becomes `<AWS_KEY-7b2e4a3f>`
+
+### Disabling Redaction
+
+Use `--no-redact` to upload without redaction (not recommended):
+
+```bash
+cclogs upload --no-redact
+```
 
 ## How It Works
 

@@ -6,11 +6,13 @@ package uploader
 import (
 	"context"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
 
+	"github.com/13rac1/cclogs/internal/redactor"
 	"github.com/13rac1/cclogs/internal/types"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
@@ -29,15 +31,17 @@ type FileUpload struct {
 
 // Uploader orchestrates file uploads to S3.
 type Uploader struct {
-	cfg    *types.Config
-	client *s3.Client
+	cfg      *types.Config
+	client   *s3.Client
+	noRedact bool
 }
 
 // New creates a new Uploader with the given configuration and S3 client.
-func New(cfg *types.Config, client *s3.Client) *Uploader {
+func New(cfg *types.Config, client *s3.Client, noRedact bool) *Uploader {
 	return &Uploader{
-		cfg:    cfg,
-		client: client,
+		cfg:      cfg,
+		client:   client,
+		noRedact: noRedact,
 	}
 }
 
@@ -284,11 +288,17 @@ func (u *Uploader) uploadFile(ctx context.Context, uploader *manager.Uploader, f
 		}
 	}()
 
+	// Wrap with redactor unless disabled
+	var body io.Reader = f
+	if !u.noRedact {
+		body = redactor.StreamRedact(f)
+	}
+
 	// Upload to S3
 	_, err = uploader.Upload(ctx, &s3.PutObjectInput{
 		Bucket: aws.String(u.cfg.S3.Bucket),
 		Key:    aws.String(file.S3Key),
-		Body:   f,
+		Body:   body,
 	})
 	if err != nil {
 		return fmt.Errorf("s3 upload: %w", err)

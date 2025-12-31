@@ -45,6 +45,7 @@ and uploads them to S3-compatible storage for backup and archival.`,
 var (
 	jsonOutput bool
 	dryRun     bool
+	noRedact   bool
 )
 
 var listCmd = &cobra.Command{
@@ -110,7 +111,7 @@ to S3-compatible storage. Safe to run repeatedly from multiple machines.`,
 		}
 
 		// Create uploader
-		u := uploader.New(cfg, client)
+		u := uploader.New(cfg, client, noRedact)
 
 		// Discover files
 		files, err := u.DiscoverFiles(ctx)
@@ -165,6 +166,7 @@ func init() {
 
 	listCmd.Flags().BoolVar(&jsonOutput, "json", false, "output in JSON format")
 	uploadCmd.Flags().BoolVar(&dryRun, "dry-run", false, "show planned uploads without performing them")
+	uploadCmd.Flags().BoolVar(&noRedact, "no-redact", false, "disable PII/secrets redaction (not recommended)")
 
 	rootCmd.AddCommand(listCmd)
 	rootCmd.AddCommand(uploadCmd)
