@@ -143,6 +143,9 @@ func TestDiscoverFiles(t *testing.T) {
 	if files[0].Size != int64(len(sessionContent)) {
 		t.Errorf("files[0].Size = %d, want %d", files[0].Size, len(sessionContent))
 	}
+	if files[0].ModTime.IsZero() {
+		t.Error("files[0].ModTime is zero, want non-zero timestamp")
+	}
 
 	// Verify second file (nested file)
 	if files[1].ProjectDir != "my-project" {
@@ -153,6 +156,9 @@ func TestDiscoverFiles(t *testing.T) {
 	}
 	if files[1].Size != int64(len(nestedContent)) {
 		t.Errorf("files[1].Size = %d, want %d", files[1].Size, len(nestedContent))
+	}
+	if files[1].ModTime.IsZero() {
+		t.Error("files[1].ModTime is zero, want non-zero timestamp")
 	}
 }
 
@@ -308,7 +314,7 @@ func TestUpload_SkipLogic(t *testing.T) {
 			Size:       100,
 			ProjectDir: "project",
 			ShouldSkip: true,
-			SkipReason: "identical",
+			SkipReason: "unchanged",
 		},
 		{
 			LocalPath:  "/fake/path2.jsonl",
@@ -316,7 +322,7 @@ func TestUpload_SkipLogic(t *testing.T) {
 			Size:       200,
 			ProjectDir: "project",
 			ShouldSkip: true,
-			SkipReason: "identical",
+			SkipReason: "unchanged",
 		},
 	}
 

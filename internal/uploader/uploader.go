@@ -11,7 +11,9 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
+	"github.com/13rac1/cclogs/internal/manifest"
 	"github.com/13rac1/cclogs/internal/redactor"
 	"github.com/13rac1/cclogs/internal/types"
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -21,12 +23,13 @@ import (
 
 // FileUpload represents a file to be uploaded to S3.
 type FileUpload struct {
-	LocalPath  string // Full path to local file
-	S3Key      string // Destination S3 key
-	Size       int64  // File size in bytes
-	ProjectDir string // Project directory name
-	ShouldSkip bool   // True if file exists remotely and is identical
-	SkipReason string // Reason for skipping (e.g., "identical")
+	LocalPath  string    // Full path to local file
+	S3Key      string    // Destination S3 key
+	Size       int64     // File size in bytes
+	ModTime    time.Time // File modification time
+	ProjectDir string    // Project directory name
+	ShouldSkip bool      // True if file exists remotely and is identical
+	SkipReason string    // Reason for skipping (e.g., "unchanged")
 }
 
 // Uploader orchestrates file uploads to S3.
@@ -92,44 +95,42 @@ func (u *Uploader) DiscoverFiles(ctx context.Context) ([]FileUpload, error) {
 		uploads = append(uploads, projectUploads...)
 	}
 
-	// Check files against remote to determine if upload is needed
-	// Skip remote checking if client is nil (for tests)
+	// Check files against manifest to determine if upload is needed
+	// Skip manifest checking if client is nil (for tests)
 	if u.client != nil {
-		// Group files by project to minimize API calls
-		projectFiles := make(map[string][]int)
-		for i := range uploads {
-			projectFiles[uploads[i].ProjectDir] = append(projectFiles[uploads[i].ProjectDir], i)
+		// Compute manifest key
+		manifestKey := u.cfg.S3.Prefix
+		if manifestKey != "" && !strings.HasSuffix(manifestKey, "/") {
+			manifestKey += "/"
+		}
+		manifestKey += ".manifest.json"
+
+		// Load manifest from S3
+		m, err := manifest.Load(ctx, u.client, u.cfg.S3.Bucket, manifestKey)
+		if err != nil {
+			// Log warning but continue - treat as first run
+			fmt.Fprintf(os.Stderr, "Warning: failed to load manifest (treating as first run): %v\n", err)
+			m = manifest.New()
 		}
 
-		// For each project, fetch all remote files once and compare
-		for projectDir, indices := range projectFiles {
-			// Compute prefix for this project's remote files
-			prefix := u.cfg.S3.Prefix
-			if prefix != "" && !strings.HasSuffix(prefix, "/") {
-				prefix += "/"
-			}
-			projectPrefix := prefix + projectDir + "/"
-
-			// Fetch all remote files for this project in one API call
-			remoteFiles, err := ListRemoteFiles(ctx, u.client, u.cfg.S3.Bucket, projectPrefix)
-			if err != nil {
-				// Log warning but continue - default to upload on error
-				fmt.Fprintf(os.Stderr, "Warning: failed to list remote files for project %s: %v\n", projectDir, err)
-				for _, i := range indices {
-					uploads[i].ShouldSkip = false
-				}
+		// Compare each local file against manifest
+		for i := range uploads {
+			entry, exists := m.Files[uploads[i].S3Key]
+			if !exists {
+				// File not in manifest - needs upload
+				uploads[i].ShouldSkip = false
 				continue
 			}
 
-			// Compare each local file against the remote files map
-			for _, i := range indices {
-				remoteSize, exists := remoteFiles[uploads[i].S3Key]
-				if !exists || remoteSize != uploads[i].Size {
-					uploads[i].ShouldSkip = false
-				} else {
-					uploads[i].ShouldSkip = true
-					uploads[i].SkipReason = "identical"
-				}
+			// Compare modification times (truncate to seconds for filesystem compatibility)
+			localMtime := uploads[i].ModTime.Truncate(time.Second)
+			remoteMtime := entry.Mtime.Truncate(time.Second)
+
+			if localMtime.Equal(remoteMtime) {
+				uploads[i].ShouldSkip = true
+				uploads[i].SkipReason = "unchanged"
+			} else {
+				uploads[i].ShouldSkip = false
 			}
 		}
 	}
@@ -155,7 +156,7 @@ func (u *Uploader) discoverProjectFiles(projectPath, projectDir string) ([]FileU
 			return nil
 		}
 
-		// Get file size
+		// Get file info
 		info, err := d.Info()
 		if err != nil {
 			return fmt.Errorf("getting file info for %s: %w", path, err)
@@ -174,6 +175,7 @@ func (u *Uploader) discoverProjectFiles(projectPath, projectDir string) ([]FileU
 			LocalPath:  path,
 			S3Key:      s3Key,
 			Size:       info.Size(),
+			ModTime:    info.ModTime().UTC(),
 			ProjectDir: projectDir,
 		}
 
@@ -232,6 +234,40 @@ func (u *Uploader) Upload(ctx context.Context, files []FileUpload) (*UploadResul
 		return &UploadResult{}, nil
 	}
 
+	// Early return for tests with nil client - just count skips
+	if u.client == nil {
+		result := &UploadResult{}
+		for _, file := range files {
+			// Check context cancellation
+			if err := ctx.Err(); err != nil {
+				return result, fmt.Errorf("upload cancelled: %w", err)
+			}
+
+			if file.ShouldSkip {
+				result.Skipped++
+			} else {
+				result.Uploaded++
+				result.UploadedBytes += file.Size
+			}
+		}
+		return result, nil
+	}
+
+	// Compute manifest key
+	manifestKey := u.cfg.S3.Prefix
+	if manifestKey != "" && !strings.HasSuffix(manifestKey, "/") {
+		manifestKey += "/"
+	}
+	manifestKey += ".manifest.json"
+
+	// Load existing manifest
+	m, err := manifest.Load(ctx, u.client, u.cfg.S3.Bucket, manifestKey)
+	if err != nil {
+		// Log warning but continue with empty manifest
+		fmt.Fprintf(os.Stderr, "Warning: failed to load manifest for update: %v\n", err)
+		m = manifest.New()
+	}
+
 	// Configure uploader with multipart settings
 	uploader := manager.NewUploader(u.client, func(mu *manager.Uploader) {
 		mu.Concurrency = 5            // 5 concurrent parts per file
@@ -249,7 +285,7 @@ func (u *Uploader) Upload(ctx context.Context, files []FileUpload) (*UploadResul
 			return result, fmt.Errorf("upload cancelled: %w", err)
 		}
 
-		// Skip files marked as identical
+		// Skip files marked as unchanged
 		if file.ShouldSkip {
 			fmt.Printf("[%d/%d] Skipping %s (%s)\n", fileNum, totalFiles, file.LocalPath, file.SkipReason)
 			result.Skipped++
@@ -263,8 +299,22 @@ func (u *Uploader) Upload(ctx context.Context, files []FileUpload) (*UploadResul
 			return result, fmt.Errorf("uploading %s: %w", file.LocalPath, err)
 		}
 
+		// Update manifest entry after successful upload
+		m.Files[file.S3Key] = manifest.FileEntry{
+			Mtime: file.ModTime,
+			Size:  file.Size,
+		}
+
 		result.Uploaded++
 		result.UploadedBytes += file.Size
+	}
+
+	// Save updated manifest if any files were uploaded
+	if result.Uploaded > 0 {
+		if err := manifest.Save(ctx, u.client, u.cfg.S3.Bucket, manifestKey, m); err != nil {
+			// Log warning but don't fail - files were successfully uploaded
+			fmt.Fprintf(os.Stderr, "Warning: failed to save manifest (uploads succeeded): %v\n", err)
+		}
 	}
 
 	// Print summary
