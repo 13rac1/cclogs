@@ -254,3 +254,155 @@ func streamRedact(r io.Reader, w io.Writer) error {
 
 	return scanner.Err()
 }
+
+// redactWithStats applies all redaction patterns to a string, counting matches.
+func redactWithStats(s string, stats *Stats) string {
+	// Normalize Unicode to canonical form to prevent homoglyph bypasses
+	s = norm.NFC.String(s)
+
+	// Pre-process for encoded secrets (but avoid infinite recursion)
+	if !strings.Contains(s, "<BASE64_SECRET-") {
+		s = preDecodeAndRedactWithStats(s, stats)
+	}
+
+	for _, p := range patterns {
+		matches := p.re.FindAllString(s, -1)
+		if len(matches) > 0 {
+			stats.TotalMatches += int64(len(matches))
+			stats.ByPattern[p.tag] += int64(len(matches))
+		}
+		s = p.re.ReplaceAllStringFunc(s, func(m string) string {
+			return placeholder(p.tag, m)
+		})
+	}
+	return s
+}
+
+// preDecodeAndRedactWithStats is like preDecodeAndRedact but tracks stats.
+func preDecodeAndRedactWithStats(s string, stats *Stats) string {
+	base64Pattern := regexp.MustCompile(`[A-Za-z0-9+/]{40,}={0,2}`)
+
+	s = base64Pattern.ReplaceAllStringFunc(s, func(m string) string {
+		if decoded, err := base64.StdEncoding.DecodeString(m); err == nil {
+			decodedStr := string(decoded)
+			redacted := redactWithStats(decodedStr, stats)
+			if redacted != decodedStr {
+				stats.TotalMatches++
+				stats.ByPattern["BASE64_SECRET"]++
+				return placeholder("BASE64_SECRET", m)
+			}
+		}
+		if decoded, err := base64.URLEncoding.DecodeString(m); err == nil {
+			decodedStr := string(decoded)
+			redacted := redactWithStats(decodedStr, stats)
+			if redacted != decodedStr {
+				stats.TotalMatches++
+				stats.ByPattern["BASE64_SECRET"]++
+				return placeholder("BASE64_SECRET", m)
+			}
+		}
+		return m
+	})
+
+	if urlDecoded, err := url.QueryUnescape(s); err == nil && urlDecoded != s {
+		redactedDecoded := redactWithStats(urlDecoded, stats)
+		if redactedDecoded != urlDecoded {
+			s = redactedDecoded
+		}
+	}
+
+	return s
+}
+
+// RedactJSONWithStats recursively redacts all string values in parsed JSON, tracking stats.
+func RedactJSONWithStats(v any, stats *Stats) any {
+	switch val := v.(type) {
+	case string:
+		return redactWithStats(val, stats)
+	case map[string]any:
+		for k, v := range val {
+			val[k] = RedactJSONWithStats(v, stats)
+		}
+		return val
+	case []any:
+		for i, v := range val {
+			val[i] = RedactJSONWithStats(v, stats)
+		}
+		return val
+	default:
+		return v
+	}
+}
+
+// redactLineWithStats processes a single JSONL line, tracking stats.
+func redactLineWithStats(line []byte, stats *Stats) ([]byte, error) {
+	if len(line) == 0 {
+		return line, nil
+	}
+
+	var data any
+	if err := json.Unmarshal(line, &data); err != nil {
+		// Not valid JSON - redact as raw string
+		return []byte(redactWithStats(string(line), stats)), nil
+	}
+
+	redacted := RedactJSONWithStats(data, stats)
+
+	var buf bytes.Buffer
+	enc := json.NewEncoder(&buf)
+	enc.SetEscapeHTML(false)
+	if err := enc.Encode(redacted); err != nil {
+		return nil, err
+	}
+	result := buf.Bytes()
+	if len(result) > 0 && result[len(result)-1] == '\n' {
+		result = result[:len(result)-1]
+	}
+	return result, nil
+}
+
+// StreamRedactWithStats returns an io.Reader that redacts content and a channel
+// that receives Stats when processing is complete.
+func StreamRedactWithStats(r io.Reader) (io.Reader, <-chan *Stats) {
+	pr, pw := io.Pipe()
+	statsCh := make(chan *Stats, 1)
+
+	go func() {
+		stats := NewStats()
+		err := streamRedactWithStats(r, pw, stats)
+		statsCh <- stats
+		close(statsCh)
+		pw.CloseWithError(err)
+	}()
+
+	return pr, statsCh
+}
+
+// streamRedactWithStats performs redaction while tracking statistics.
+func streamRedactWithStats(r io.Reader, w io.Writer, stats *Stats) error {
+	scanner := bufio.NewScanner(r)
+	scanner.Buffer(make([]byte, 64*1024), 10*1024*1024)
+
+	for scanner.Scan() {
+		line := scanner.Bytes()
+		stats.LinesProcessed++
+		stats.OriginalBytes += int64(len(line)) + 1 // +1 for newline
+
+		redacted, err := redactLineWithStats(line, stats)
+		if err != nil {
+			return fmt.Errorf("redacting line: %w", err)
+		}
+
+		stats.RedactedBytes += int64(len(redacted)) + 1
+
+		if _, err := w.Write(redacted); err != nil {
+			return fmt.Errorf("writing redacted line: %w", err)
+		}
+
+		if _, err := w.Write([]byte("\n")); err != nil {
+			return fmt.Errorf("writing newline: %w", err)
+		}
+	}
+
+	return scanner.Err()
+}

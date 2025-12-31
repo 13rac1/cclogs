@@ -221,9 +221,10 @@ func ComputeS3Key(prefix, projectDir, relPath string) string {
 
 // UploadResult contains summary statistics from an upload operation.
 type UploadResult struct {
-	Uploaded      int   // Number of files uploaded
-	Skipped       int   // Number of files skipped
-	UploadedBytes int64 // Total bytes uploaded
+	Uploaded       int              // Number of files uploaded
+	Skipped        int              // Number of files skipped
+	UploadedBytes  int64            // Total bytes uploaded
+	RedactionStats *redactor.Stats  // Aggregated redaction statistics
 }
 
 // Upload uploads the provided files to S3, respecting the ShouldSkip field.
@@ -274,7 +275,9 @@ func (u *Uploader) Upload(ctx context.Context, files []FileUpload) (*UploadResul
 		mu.PartSize = 5 * 1024 * 1024 // 5MB parts
 	})
 
-	result := &UploadResult{}
+	result := &UploadResult{
+		RedactionStats: redactor.NewStats(),
+	}
 	totalFiles := len(files)
 
 	for i, file := range files {
@@ -293,10 +296,23 @@ func (u *Uploader) Upload(ctx context.Context, files []FileUpload) (*UploadResul
 		}
 
 		// Upload the file
-		fmt.Printf("[%d/%d] Uploading %s (%s)\n", fileNum, totalFiles, file.LocalPath, formatSize(file.Size))
+		fmt.Printf("[%d/%d] Uploading %s (%s)", fileNum, totalFiles, file.LocalPath, formatSize(file.Size))
 
-		if err := u.uploadFile(ctx, uploader, file); err != nil {
+		fileStats, err := u.uploadFile(ctx, uploader, file)
+		if err != nil {
+			fmt.Println() // Complete the line
 			return result, fmt.Errorf("uploading %s: %w", file.LocalPath, err)
+		}
+
+		// Display per-file redaction stats
+		if fileStats != nil && fileStats.TotalMatches > 0 {
+			fmt.Printf(" → %s (%.1f%% redacted, %d matches)\n",
+				formatSize(fileStats.RedactedBytes),
+				fileStats.PercentReduction(),
+				fileStats.TotalMatches)
+			result.RedactionStats.Add(fileStats)
+		} else {
+			fmt.Println() // No redaction to report
 		}
 
 		// Update manifest entry after successful upload
@@ -321,15 +337,31 @@ func (u *Uploader) Upload(ctx context.Context, files []FileUpload) (*UploadResul
 	fmt.Printf("\nUpload complete: %d uploaded (%s), %d skipped\n",
 		result.Uploaded, formatSize(result.UploadedBytes), result.Skipped)
 
+	// Print redaction summary if any matches were found
+	if result.RedactionStats != nil && result.RedactionStats.TotalMatches > 0 {
+		fmt.Printf("\nRedaction summary:\n")
+		fmt.Printf("  Total: %s → %s (%.1f%% reduction)\n",
+			formatSize(result.RedactionStats.OriginalBytes),
+			formatSize(result.RedactionStats.RedactedBytes),
+			result.RedactionStats.PercentReduction())
+		fmt.Printf("  Matches: %d total\n", result.RedactionStats.TotalMatches)
+
+		// Print per-pattern breakdown
+		for _, pc := range result.RedactionStats.PatternSummary() {
+			fmt.Printf("    %s: %d\n", pc.Pattern, pc.Count)
+		}
+	}
+
 	return result, nil
 }
 
 // uploadFile uploads a single file to S3 using the configured uploader.
-func (u *Uploader) uploadFile(ctx context.Context, uploader *manager.Uploader, file FileUpload) error {
+// Returns redaction stats if redaction was enabled, nil otherwise.
+func (u *Uploader) uploadFile(ctx context.Context, uploader *manager.Uploader, file FileUpload) (*redactor.Stats, error) {
 	// Open the local file
 	f, err := os.Open(file.LocalPath)
 	if err != nil {
-		return fmt.Errorf("opening file: %w", err)
+		return nil, fmt.Errorf("opening file: %w", err)
 	}
 	defer func() {
 		if closeErr := f.Close(); closeErr != nil {
@@ -340,8 +372,9 @@ func (u *Uploader) uploadFile(ctx context.Context, uploader *manager.Uploader, f
 
 	// Wrap with redactor unless disabled
 	var body io.Reader = f
+	var statsCh <-chan *redactor.Stats
 	if !u.noRedact {
-		body = redactor.StreamRedact(f)
+		body, statsCh = redactor.StreamRedactWithStats(f)
 	}
 
 	// Upload to S3
@@ -351,10 +384,16 @@ func (u *Uploader) uploadFile(ctx context.Context, uploader *manager.Uploader, f
 		Body:   body,
 	})
 	if err != nil {
-		return fmt.Errorf("s3 upload: %w", err)
+		return nil, fmt.Errorf("s3 upload: %w", err)
 	}
 
-	return nil
+	// Wait for stats after upload completes
+	if statsCh != nil {
+		stats := <-statsCh
+		return stats, nil
+	}
+
+	return nil, nil
 }
 
 // formatSize formats a byte count as a human-readable string.
