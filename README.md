@@ -2,6 +2,8 @@
 
 **cclogs** is a CLI tool that backs up your Claude Code session logs to S3-compatible storage.
 
+**WARNING: Do not use this yet, unless you own the destination data store**
+
 Claude Code stores session transcripts as `.jsonl` files under `~/.claude/projects/`. These logs are valuable for debugging, auditing, and analysis, but they can be lost when machines are rebuilt or cleaned up. **cclogs** automatically discovers all your local Claude Code projects and safely uploads their logs to S3-compatible storage, making it easy to maintain backups across multiple machines.
 
 ## Features
