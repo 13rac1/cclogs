@@ -166,6 +166,8 @@ func Redact(s string) string {
 }
 
 // RedactJSON recursively redacts all string values in parsed JSON.
+// WARNING: This function modifies the input in place. The input map/slice
+// will be mutated. Pass a deep copy if you need to preserve the original.
 func RedactJSON(v any) any {
 	switch val := v.(type) {
 	case string:
@@ -221,35 +223,34 @@ func StreamRedact(r io.Reader) io.Reader {
 	pr, pw := io.Pipe()
 
 	go func() {
-		defer func() { _ = pw.Close() }()
-
-		scanner := bufio.NewScanner(r)
-		// Increase buffer for large lines (10MB max)
-		scanner.Buffer(make([]byte, 64*1024), 10*1024*1024)
-
-		for scanner.Scan() {
-			line := scanner.Bytes()
-			redacted, err := redactLine(line)
-			if err != nil {
-				pw.CloseWithError(fmt.Errorf("redacting line: %w", err))
-				return
-			}
-
-			if _, err := pw.Write(redacted); err != nil {
-				pw.CloseWithError(fmt.Errorf("writing redacted line: %w", err))
-				return
-			}
-
-			if _, err := pw.Write([]byte("\n")); err != nil {
-				pw.CloseWithError(fmt.Errorf("writing newline: %w", err))
-				return
-			}
-		}
-
-		if err := scanner.Err(); err != nil {
-			pw.CloseWithError(fmt.Errorf("scanning input: %w", err))
-		}
+		err := streamRedact(r, pw)
+		pw.CloseWithError(err)
 	}()
 
 	return pr
+}
+
+// streamRedact performs the actual redaction work, writing redacted lines to w.
+func streamRedact(r io.Reader, w io.Writer) error {
+	scanner := bufio.NewScanner(r)
+	// Increase buffer for large lines (10MB max)
+	scanner.Buffer(make([]byte, 64*1024), 10*1024*1024)
+
+	for scanner.Scan() {
+		line := scanner.Bytes()
+		redacted, err := redactLine(line)
+		if err != nil {
+			return fmt.Errorf("redacting line: %w", err)
+		}
+
+		if _, err := w.Write(redacted); err != nil {
+			return fmt.Errorf("writing redacted line: %w", err)
+		}
+
+		if _, err := w.Write([]byte("\n")); err != nil {
+			return fmt.Errorf("writing newline: %w", err)
+		}
+	}
+
+	return scanner.Err()
 }
