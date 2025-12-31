@@ -2,9 +2,28 @@
 
 **cclogs** is a CLI tool that backs up your Claude Code session logs to S3-compatible storage.
 
-**WARNING: Do not use this yet, unless you own the destination data store**
-
 Claude Code stores session transcripts as `.jsonl` files under `~/.claude/projects/`. These logs are valuable for debugging, auditing, and analysis, but they can be lost when machines are rebuilt or cleaned up. **cclogs** automatically discovers all your local Claude Code projects and safely uploads their logs to S3-compatible storage, making it easy to maintain backups across multiple machines.
+
+## SECURITY WARNING
+
+> **Handle With Care**
+>
+> Claude Code session logs contain your **complete coding conversations**, including:
+> - Source code snippets and file contents
+> - Terminal commands and their outputs
+> - Error messages and stack traces
+> - File paths revealing project structure
+>
+> **Where do logs go?** Logs are uploaded to **your own S3-compatible storage** that you configure. This tool does NOT send data to any third-party service - you control the destination.
+>
+> **Redaction is best-effort.** While cclogs redacts common PII and secrets (emails, API keys, tokens), it cannot catch everything. Novel secret formats, proprietary patterns, or sensitive business logic in code will NOT be redacted.
+>
+> **Your responsibilities:**
+> - Only upload to storage **you own and control**
+> - Enable bucket encryption at rest
+> - Use restrictive bucket policies (no public access)
+> - Review redaction output with `--dry-run --debug` before first upload
+> - Consider who has access to your backup storage
 
 ## Features
 
@@ -212,13 +231,31 @@ auth:
 
 ## Security
 
-- Session logs may contain sensitive information
+### Threat Model
+
+**cclogs** assumes you are uploading to storage you own and control. The redaction system provides defense-in-depth but is not a substitute for proper access controls.
+
+### Configuration Security
+
 - Use AWS profiles (recommended) or set restrictive permissions on `config.yaml`:
   ```bash
   chmod 600 ~/.cclogs/config.yaml
   ```
 - Never commit credentials to version control
-- Consider using bucket encryption and lifecycle policies
+- Enable bucket encryption at rest (SSE-S3 or SSE-KMS)
+- Block public access on your bucket
+- Use lifecycle policies to auto-expire old backups if desired
+
+### Redaction Limitations
+
+The redaction system catches common patterns but **cannot detect**:
+- Custom or proprietary secret formats
+- Secrets embedded in code logic
+- Sensitive business information
+- Novel API key formats not in the pattern list
+- Secrets split across multiple lines
+
+**Always review with `--dry-run --debug` before your first upload** to verify the redaction behavior meets your needs.
 
 ## Redaction
 
@@ -237,14 +274,15 @@ By default, **cclogs** automatically redacts sensitive data before uploading. Re
 
 ### Placeholder Format
 
-Format: `<TYPE-XXXXXXXX>` where `XXXXXXXX` is the first 4 bytes of the SHA-256 hash.
+Format: `<TYPE-XXXXXXXXXXXX>` where `XXXXXXXXXXXX` is the first 6 bytes (12 hex chars) of the SHA-256 hash.
 
 - Same values always produce the same placeholder (deterministic)
 - Different values produce different placeholders (correlatable for debugging)
+- 6 bytes provides ~281 trillion possible values, balancing readability with collision resistance
 
 Example:
-- `user@example.com` becomes `<EMAIL-9f86d081>`
-- `AKIAIOSFODNN7EXAMPLE` becomes `<AWS_KEY-7b2e4a3f>`
+- `user@example.com` → `<EMAIL-b4c9a289...>`
+- `AKIAIOSFODNN7EXAMPLE` → `<AWS_KEY-a1b2c3d4...>`
 
 ### Disabling Redaction
 
