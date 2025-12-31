@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/13rac1/cclogs/internal/manifest"
 	"github.com/13rac1/cclogs/internal/types"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 )
@@ -53,6 +54,32 @@ func DiscoverRemote(ctx context.Context, client *s3.Client, bucket, prefix strin
 	})
 
 	return projects, nil
+}
+
+// DiscoverFromManifest builds a project list from manifest entries.
+// This is more efficient than DiscoverRemote as it requires only one S3 GET.
+func DiscoverFromManifest(m *manifest.Manifest, prefix string) []types.Project {
+	// Ensure prefix ends with / for consistent prefix matching
+	if prefix != "" && !strings.HasSuffix(prefix, "/") {
+		prefix = prefix + "/"
+	}
+
+	counts := m.CountByProject(prefix)
+
+	var projects []types.Project
+	for name, count := range counts {
+		projects = append(projects, types.Project{
+			Name:        name,
+			RemotePath:  prefix + name + "/",
+			RemoteCount: count,
+		})
+	}
+
+	sort.Slice(projects, func(i, j int) bool {
+		return projects[i].Name < projects[j].Name
+	})
+
+	return projects
 }
 
 // listProjectPrefixes returns all immediate child prefixes under bucket/prefix/.

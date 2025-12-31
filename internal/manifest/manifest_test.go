@@ -307,3 +307,82 @@ func TestSave_NetworkError(t *testing.T) {
 		t.Fatal("Expected error for network failure, got nil")
 	}
 }
+
+func TestCountByProject(t *testing.T) {
+	tests := []struct {
+		name   string
+		files  map[string]FileEntry
+		prefix string
+		want   map[string]int
+	}{
+		{
+			name:   "empty manifest",
+			files:  map[string]FileEntry{},
+			prefix: "claude-code/",
+			want:   map[string]int{},
+		},
+		{
+			name: "single project",
+			files: map[string]FileEntry{
+				"claude-code/project-a/session.jsonl":        {},
+				"claude-code/project-a/logs/2025-01.jsonl":   {},
+				"claude-code/project-a/logs/2025-02.jsonl":   {},
+			},
+			prefix: "claude-code/",
+			want:   map[string]int{"project-a": 3},
+		},
+		{
+			name: "multiple projects",
+			files: map[string]FileEntry{
+				"claude-code/project-a/session.jsonl": {},
+				"claude-code/project-b/session.jsonl": {},
+				"claude-code/project-b/logs.jsonl":    {},
+			},
+			prefix: "claude-code/",
+			want:   map[string]int{"project-a": 1, "project-b": 2},
+		},
+		{
+			name: "prefix without trailing slash",
+			files: map[string]FileEntry{
+				"claude-code/project-a/session.jsonl": {},
+			},
+			prefix: "claude-code",
+			want:   map[string]int{"project-a": 1},
+		},
+		{
+			name: "empty prefix",
+			files: map[string]FileEntry{
+				"project-a/session.jsonl": {},
+				"project-b/logs.jsonl":    {},
+			},
+			prefix: "",
+			want:   map[string]int{"project-a": 1, "project-b": 1},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := &Manifest{
+				Version: 1,
+				Files:   tt.files,
+			}
+
+			got := m.CountByProject(tt.prefix)
+
+			if len(got) != len(tt.want) {
+				t.Errorf("CountByProject() returned %d projects, want %d", len(got), len(tt.want))
+			}
+
+			for project, wantCount := range tt.want {
+				gotCount, exists := got[project]
+				if !exists {
+					t.Errorf("CountByProject() missing project %q", project)
+					continue
+				}
+				if gotCount != wantCount {
+					t.Errorf("CountByProject()[%q] = %d, want %d", project, gotCount, wantCount)
+				}
+			}
+		})
+	}
+}

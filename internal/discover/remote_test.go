@@ -2,6 +2,9 @@ package discover
 
 import (
 	"testing"
+	"time"
+
+	"github.com/13rac1/cclogs/internal/manifest"
 )
 
 func TestExtractProjectName(t *testing.T) {
@@ -101,3 +104,91 @@ func TestStrPtr(t *testing.T) {
 //     session2.jsonl
 //   project-b/
 //     session1.jsonl
+
+func TestDiscoverFromManifest(t *testing.T) {
+	mtime := time.Date(2025, 1, 1, 12, 0, 0, 0, time.UTC)
+
+	tests := []struct {
+		name    string
+		files   map[string]manifest.FileEntry
+		prefix  string
+		want    []string // project names in sorted order
+		counts  map[string]int
+	}{
+		{
+			name:   "empty manifest",
+			files:  map[string]manifest.FileEntry{},
+			prefix: "claude-code/",
+			want:   []string{},
+			counts: map[string]int{},
+		},
+		{
+			name: "single project with multiple files",
+			files: map[string]manifest.FileEntry{
+				"claude-code/project-a/session.jsonl":      {Mtime: mtime, Size: 100},
+				"claude-code/project-a/logs/2025-01.jsonl": {Mtime: mtime, Size: 200},
+			},
+			prefix: "claude-code/",
+			want:   []string{"project-a"},
+			counts: map[string]int{"project-a": 2},
+		},
+		{
+			name: "multiple projects",
+			files: map[string]manifest.FileEntry{
+				"claude-code/project-a/session.jsonl": {Mtime: mtime, Size: 100},
+				"claude-code/project-b/session.jsonl": {Mtime: mtime, Size: 200},
+				"claude-code/project-c/logs.jsonl":    {Mtime: mtime, Size: 300},
+			},
+			prefix: "claude-code/",
+			want:   []string{"project-a", "project-b", "project-c"},
+			counts: map[string]int{"project-a": 1, "project-b": 1, "project-c": 1},
+		},
+		{
+			name: "prefix without trailing slash",
+			files: map[string]manifest.FileEntry{
+				"claude-code/project-a/session.jsonl": {Mtime: mtime, Size: 100},
+			},
+			prefix: "claude-code",
+			want:   []string{"project-a"},
+			counts: map[string]int{"project-a": 1},
+		},
+		{
+			name: "empty prefix",
+			files: map[string]manifest.FileEntry{
+				"project-a/session.jsonl": {Mtime: mtime, Size: 100},
+				"project-b/logs.jsonl":    {Mtime: mtime, Size: 200},
+			},
+			prefix: "",
+			want:   []string{"project-a", "project-b"},
+			counts: map[string]int{"project-a": 1, "project-b": 1},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := &manifest.Manifest{
+				Version: 1,
+				Files:   tt.files,
+			}
+
+			got := DiscoverFromManifest(m, tt.prefix)
+
+			if len(got) != len(tt.want) {
+				t.Errorf("DiscoverFromManifest() returned %d projects, want %d", len(got), len(tt.want))
+			}
+
+			for i, wantName := range tt.want {
+				if i >= len(got) {
+					break
+				}
+				if got[i].Name != wantName {
+					t.Errorf("DiscoverFromManifest()[%d].Name = %q, want %q", i, got[i].Name, wantName)
+				}
+				wantCount := tt.counts[wantName]
+				if got[i].RemoteCount != wantCount {
+					t.Errorf("DiscoverFromManifest()[%d].RemoteCount = %d, want %d", i, got[i].RemoteCount, wantCount)
+				}
+			}
+		})
+	}
+}

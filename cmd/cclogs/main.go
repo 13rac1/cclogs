@@ -6,10 +6,12 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 
 	"github.com/13rac1/cclogs/internal/config"
 	"github.com/13rac1/cclogs/internal/discover"
 	"github.com/13rac1/cclogs/internal/doctor"
+	"github.com/13rac1/cclogs/internal/manifest"
 	"github.com/13rac1/cclogs/internal/output"
 	"github.com/13rac1/cclogs/internal/types"
 	"github.com/13rac1/cclogs/internal/uploader"
@@ -64,16 +66,18 @@ showing the count of .jsonl files for each project.`,
 			return fmt.Errorf("discovering local projects: %w", err)
 		}
 
-		// Discover remote projects if S3 is configured
-		// Gracefully skip remote discovery if S3 is not accessible
+		// Discover remote projects from manifest if S3 is configured
 		var remoteProjects []types.Project
 		if cfg.S3.Bucket != "" {
 			s3Client, err := config.NewS3Client(cmd.Context(), cfg)
 			if err == nil {
-				remoteProjects, err = discover.DiscoverRemote(cmd.Context(), s3Client, cfg.S3.Bucket, cfg.S3.Prefix)
+				manifestKey := computeManifestKey(cfg.S3.Prefix)
+				m, err := manifest.Load(cmd.Context(), s3Client, cfg.S3.Bucket, manifestKey)
 				if err != nil {
-					fmt.Fprintf(os.Stderr, "Warning: failed to discover remote projects: %v\n", err)
+					fmt.Fprintf(os.Stderr, "Warning: could not load manifest: %v\n", err)
+					m = manifest.New()
 				}
+				remoteProjects = discover.DiscoverFromManifest(m, cfg.S3.Prefix)
 			}
 		}
 
@@ -331,4 +335,15 @@ func formatSize(bytes int64) string {
 	default:
 		return fmt.Sprintf("%d B", bytes)
 	}
+}
+
+// computeManifestKey returns the S3 key for the manifest file.
+func computeManifestKey(prefix string) string {
+	if prefix == "" {
+		return ".manifest.json"
+	}
+	if !strings.HasSuffix(prefix, "/") {
+		prefix = prefix + "/"
+	}
+	return prefix + ".manifest.json"
 }
