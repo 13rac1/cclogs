@@ -38,7 +38,7 @@ var patterns = []pattern{
 	// Prevent ReDoS by using [^-]* instead of .*? to avoid catastrophic backtracking
 	{"PRIVKEY", regexp.MustCompile(`(?s)-----BEGIN [A-Z ]*PRIVATE KEY-----[^-]*-----END [A-Z ]*PRIVATE KEY-----`)},
 	{"OPENSSH_KEY", regexp.MustCompile(`(?s)-----BEGIN OPENSSH PRIVATE KEY-----[^-]*-----END OPENSSH PRIVATE KEY-----`)},
-	{"PUTTY_KEY", regexp.MustCompile(`(?s)PuTTY-User-Key-File-[0-9]:.*?Private-Lines:.*`)},
+	{"PUTTY_KEY", regexp.MustCompile(`PuTTY-User-Key-File-[0-9]: [a-z0-9-]+\r?\n`)},
 
 	// Service tokens (case-insensitive for robustness, specific prefixes before generic patterns)
 	{"GITHUB", regexp.MustCompile(`(?i)\bgh[pousr]_[A-Za-z0-9_]{36,}\b`)},
@@ -75,7 +75,7 @@ var patterns = []pattern{
 	{"JWT", regexp.MustCompile(`\bey[A-Za-z0-9_-]{10,}\.ey[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b`)},
 	{"BEARER", regexp.MustCompile(`(?i)\bBearer[\s:]+[A-Za-z0-9_.-]{20,}`)},
 	{"AUTH_TOKEN", regexp.MustCompile(`(?i)(authorization|token|auth)["'\s:=]+[A-Za-z0-9_.-]{32,}`)},
-	{"BASIC_AUTH", regexp.MustCompile(`(?i)\bBasic\s+[A-Za-z0-9+/=]{10,}`)},
+	{"BASIC_AUTH", regexp.MustCompile(`(?i)\bBasic\s+[A-Za-z0-9+/=]{20,}`)},
 
 	// URL credentials (before email to avoid email matching domain parts)
 	{"URL_CREDS", regexp.MustCompile(`([a-z]+://|^)[^/:@\s]+:[^/@\s]+@[^/\s]+`)},
@@ -87,20 +87,26 @@ var patterns = []pattern{
 	{"CC", regexp.MustCompile(`\b\d{4}[-\s]\d{4}[-\s]\d{4}[-\s]\d{4}\b`)},
 	{"IP", regexp.MustCompile(`\b(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\b`)},
 	{"PHONE_US", regexp.MustCompile(`\b(\+1[-.\s]?)?\(?\d{3}\)?[-.\s]\d{3}[-.\s]\d{4}\b`)},
-	{"PHONE_INTL", regexp.MustCompile(`\+\d{1,3}[-.\s]?\(?\d{1,4}\)?[-.\s]?\d{1,4}[-.\s]?\d{1,9}`)},
+	{"PHONE_INTL", regexp.MustCompile(`\+[1-9]\d{0,2}[-\s]+\d+(?:[-\s]+\d+)+`)},
 
 	// Generic secret patterns (last, as catch-all)
 	{"ENV_SECRET", regexp.MustCompile(`(?i)\b(password|secret|api_key)\s*[=:]\s*["']?[^\s"']{8,}`)},
 	{"HEX_SECRET", regexp.MustCompile(`(?i)\b(key|secret)\s*[=:]\s*["']?[a-f0-9]{32,}`)},
-	{"BASE64_SECRET", regexp.MustCompile(`\b[A-Za-z0-9/+=]{40}\b`)},
+	// BASE64_SECRET pattern removed: too broad, matched file paths
+	// preDecodeAndRedact handles actual base64-encoded secrets
+}
+
+// skipValues contains values that should not be redacted even if they match a pattern.
+var skipValues = map[string]bool{
+	"127.0.0.1": true, // localhost - nothing to hide
 }
 
 // placeholder generates a deterministic placeholder for a redacted value.
-// Format: <TAG-XXXXXXXXXXXXXXXXXXXXXXXX> where X is the first 12 bytes (96 bits) of SHA-256 hash.
-// Increased from 4 bytes to 12 bytes to prevent rainbow table attacks.
+// Format: <TAG-XXXXXXXXXXXX> where X is the first 6 bytes (48 bits) of SHA-256 hash.
+// Note: 12 bytes (96 bits) recommended if rainbow table attacks are a concern.
 func placeholder(tag, original string) string {
 	hash := sha256.Sum256([]byte(original))
-	return fmt.Sprintf("<%s-%x>", tag, hash[:12])
+	return fmt.Sprintf("<%s-%x>", tag, hash[:6])
 }
 
 // preDecodeAndRedact attempts to detect and decode common encodings,
@@ -159,6 +165,9 @@ func Redact(s string) string {
 
 	for _, p := range patterns {
 		s = p.re.ReplaceAllStringFunc(s, func(m string) string {
+			if skipValues[m] {
+				return m
+			}
 			return placeholder(p.tag, m)
 		})
 	}
@@ -268,6 +277,9 @@ func redactWithStats(s string, stats *Stats, debugW io.Writer) string {
 	for _, p := range patterns {
 		tag := p.tag // capture for closure
 		s = p.re.ReplaceAllStringFunc(s, func(m string) string {
+			if skipValues[m] {
+				return m
+			}
 			stats.TotalMatches++
 			stats.ByPattern[tag]++
 			redacted := placeholder(tag, m)

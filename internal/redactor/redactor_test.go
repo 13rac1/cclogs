@@ -532,7 +532,7 @@ func TestRedactNewCloudProviders(t *testing.T) {
 		input        string
 		expectedTags []string // Accept any of these tags
 	}{
-		{"GCP API key", "AIzaSyD1234567890abcdefghijklmnopqrstuvw", []string{"GCP_API", "BASE64_SECRET"}},
+		{"GCP API key", "AIzaSyD1234567890abcdefghijklmnopqrstuv", []string{"GCP_API"}},
 		{"SendGrid token", "SG.1234567890abcdefghijklmnopqr.1234567890abcdefghijklmnopqrstuvwxyz12345", []string{"SENDGRID"}},
 		{"Twilio Account SID", "AC1234567890abcdef1234567890abcdef", []string{"TWILIO_SID", "HEX_SECRET"}},
 		{"Twilio API Key", "SK1234567890abcdef1234567890abcdef", []string{"TWILIO_SID", "HEX_SECRET"}},
@@ -814,10 +814,10 @@ func TestRedactURLCredentialsComprehensive(t *testing.T) {
 }
 
 func TestPlaceholderLength(t *testing.T) {
-	// Verify that placeholders now use 12 bytes (96 bits) instead of 4 bytes
+	// Verify placeholder format
 	p := placeholder("TEST", "secret123")
 
-	// Format: <TEST-XXXXXXXXXXXXXXXXXXXXXXXX> where X is 24 hex chars (12 bytes)
+	// Format: <TEST-XXXXXXXXXXXX> where X is 12 hex chars (6 bytes)
 	if !strings.HasPrefix(p, "<TEST-") {
 		t.Errorf("unexpected prefix: %s", p)
 	}
@@ -827,7 +827,7 @@ func TestPlaceholderLength(t *testing.T) {
 
 	// Extract the hash portion
 	hashPart := strings.TrimPrefix(strings.TrimSuffix(p, ">"), "<TEST-")
-	if len(hashPart) != 24 { // 12 bytes = 24 hex characters
-		t.Errorf("expected 24 hex chars (12 bytes), got %d: %s", len(hashPart), p)
+	if len(hashPart) != 12 { // 6 bytes = 12 hex characters
+		t.Errorf("expected 12 hex chars (6 bytes), got %d: %s", len(hashPart), p)
 	}
 }
